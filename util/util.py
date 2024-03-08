@@ -3,6 +3,8 @@ import os
 import random
 import numpy as np
 
+
+# ---- Validation Data Generation ----
 def read_csvs_and_combine(folder_path, max_rows=100000):
    """Reads all CSV files in a folder, combines them into a single DataFrame, and stops reading if the limit is reached.
 
@@ -203,3 +205,42 @@ def insert_rows_at_random(df: pd.DataFrame, insert_df: pd.DataFrame, o: int,
             insert_df = remove_n_percent_rows(insert_df,reduced_by)
         df = pd.concat([df.iloc[:insert_indices], insert_df, df.iloc[insert_indices:]], ignore_index=True)
     return df, index_list
+
+# ---- Window Size Selection ----
+
+def windowSizeByBreak(uiLog: pd.DataFrame, timestamp:str="time:timestamp", realBreakThreshold:float=950.0, percentil:int=75) -> int:
+    """
+    Calculates the window size based on the average number of actions between major breaks.
+    A major break is considered everything above the third percential of breaks in the UI log.
+    Major breaks that are not considered are once above the realBreakThreshold in seconds.
+    
+    Args:
+      uiLog (pd.DataFrame): The ui log that should be processed
+      timestamp (str): The column name containing the time stamps
+      realBreakThreshold (float): Time in seconds for which a break is a business break (e.g. new day, coffee break)
+      percentil (int): Percentil, which should be used for seperating
+    
+    Returns:
+      windowSize (int)
+    """
+    b = 0
+    i = 0
+    breaks = []
+    uiLog[timestamp] = pd.to_datetime(uiLog[timestamp], format='ISO8601')
+    # Calculate time differences (assuming timestamps are sorted)
+    breaks = uiLog['time:timestamp'].diff().dt.total_seconds().tolist()[1:]
+    breaks = [gap for gap in breaks if gap <= realBreakThreshold]
+    third_quartile = np.percentile(breaks, percentil)
+    # Find indices of third quartile occurrences
+    quartile_indices = [i for i, value in enumerate(breaks) if value == third_quartile]
+
+    # Check if there are at least two occurrences
+    if len(quartile_indices) < 2:
+        return None  # Not enough data to calculate average
+
+    # Calculate the number of elements between occurrences (excluding the quartiles themselves)
+    num_elements_between = [quartile_indices[i + 1] - quartile_indices[i] - 1 for i in range(len(quartile_indices) - 1)]
+
+    # Calculate the average number of elements between occurrences
+    average_elements = sum(num_elements_between) / len(num_elements_between)
+    return third_quartile,quartile_indices,average_elements
