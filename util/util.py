@@ -3,6 +3,28 @@ import os
 import random
 import numpy as np
 
+# ---- Tuple Generation for Time Series Data Creation ----
+def createDict(someSet) -> dict:
+    theDict = {}
+    id_counter = 0
+    for element in someSet:
+        theDict[element] = id_counter
+        id_counter += 1
+    return theDict
+
+# Define a function to retrieve the key from the dictionary
+def get_key(row, mapping_dict, row_name):
+    value = row[row_name]
+    return mapping_dict.get(value)
+
+def get_id(row, tuples, columns):
+    # Used to generate one dimensional time series
+    try:
+        # Get the index of the first occurrence of element_value
+        element_index = tuples.index(tuple(row[columns]))
+        return element_index
+    except ValueError:
+        return -1 
 
 # ---- Validation Data Generation ----
 def read_csvs_and_combine(folder_path, max_rows=100000):
@@ -244,3 +266,5 @@ def windowSizeByBreak(uiLog: pd.DataFrame, timestamp:str="time:timestamp", realB
     # Calculate the average number of elements between occurrences
     average_elements = sum(num_elements_between) / len(num_elements_between)
     return third_quartile,quartile_indices,average_elements
+
+
