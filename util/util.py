@@ -271,8 +271,36 @@ def windowSizeByBreak(uiLog: pd.DataFrame, timestamp:str="time:timestamp", realB
 
 # ------ Boundary Information and Evaluation functions -----
 
+# Method to calculate the rolling mean for timeDifferences
+def calculate_running_average_difference(df, n, col_name="timeDifference"):
+    """
+    This function calculates the running average difference between timestamps 
+    for the last n events in a pandas dataframe.
+
+    Args:
+        df (pandas.DataFrame): The dataframe containing the time difference column.
+        n (int): The number of events to consider for the running average.
+        col_name (str, optional): The name of the column containing the time differences. Defaults to "timediff".
+
+    Returns:
+        pandas.DataFrame: The modified dataframe with a new column named "n-running-difference".
+    """
+    df["n-running-difference"] = df[col_name].rolling(window=n).mean()
+    return df
+
 # Adding boundary information if time difference >1h between actions in case
-def calculate_time_difference(arr: pd.DataFrame, miner, gap:int = 3600) -> pd.DataFrame:
+def calculate_time_difference(arr: pd.DataFrame, miner, gap:int = 3600, n_rolling:int = 100) -> pd.DataFrame:
+    """
+    Calculates the time difference between consequitive rows and sets the timeDifferenceBool flags
+    Static gap takes the gap parameter with default value 3600s (1h)
+    Dynamic gap takes the n-rolling average gap with n as parameter with default 100
+
+    Args:
+      arr (dataframe): The UI log
+      miner (uipatternminer): A generated UI pattern miner generated on the Dataframe
+      gap (int: def. 3600): Comparison value for gap between two actions, if higher a gap is detected
+      n_rolling (int: def. 100): Input value to calculate the dynamic running value 
+    """
     arr[miner.timeStamp] = pd.to_datetime(arr[miner.timeStamp])
 
     arr['next_caseID'] = arr[miner.case_id].shift(-1) # Erstelle eine Spalte mit der "caseID" der folgenden Zeile
@@ -280,13 +308,25 @@ def calculate_time_difference(arr: pd.DataFrame, miner, gap:int = 3600) -> pd.Da
 
     for index, row in arr.iterrows():
         if index < len(arr) - 1 and row[miner.case_id] == row['next_caseID']:
-            time_diff = arr.loc[index + 1, miner.timeStamp] - row[miner.timeStamp]
-            arr.at[index, 'timeDifference'] = time_diff
+          time_diff = arr.loc[index + 1, miner.timeStamp] - row[miner.timeStamp]
+          arr.at[index, 'timeDifference'] = time_diff
 
-    arr['timeDifferenceBool'] = arr['timeDifference'].apply(lambda x: x.total_seconds() > gap)
+    # Setting static gap
+    arr['timeDifferenceBoolStatic'] = arr['timeDifference'].apply(lambda x: x.total_seconds() > gap)
 
-    arr = arr.drop(columns=['next_caseID']) # Removes Temporary row
+    # Setting dynamic gap
+    try:
+        arr["timeDifference"] = arr.apply(lambda row: row["timeDifference"].seconds, axis=1)
+    except:
+        nothingToDoHere = 1
+        # We actually expect it to be integer values already, otherwise something has gone wrong with the df earlier
+    arr = calculate_running_average_difference(arr.copy(), n_rolling)
+    arr["timeDifferenceBoolRolling"] = arr.apply(lambda row: row['n-running-difference'] < row['timeDifference'], axis=1)
+
+    arr.drop(columns=['next_caseID'], inplace=True) # Removes Temporary row
     return arr
+
+
 
 def find_closest_boundaries(df, index, col_name='isBoundary'):
     """
