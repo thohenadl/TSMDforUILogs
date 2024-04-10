@@ -1,3 +1,5 @@
+# If a function is added in here the Jupyter Notebook has to be restarted (Kernal restart) to load the function properly
+
 import pandas as pd
 import os
 import random
@@ -229,7 +231,6 @@ def insert_rows_at_random(df: pd.DataFrame, insert_df: pd.DataFrame, o: int,
     return df, index_list
 
 # ---- Window Size Selection ----
-
 def windowSizeByBreak(uiLog: pd.DataFrame, timestamp:str="time:timestamp", realBreakThreshold:float=950.0, percentil:int=75) -> int:
     """
     Calculates the window size based on the average number of actions between major breaks.
@@ -268,3 +269,57 @@ def windowSizeByBreak(uiLog: pd.DataFrame, timestamp:str="time:timestamp", realB
     return third_quartile,quartile_indices,average_elements
 
 
+# ------ Boundary Information and Evaluation functions -----
+
+# Adding boundary information if time difference >1h between actions in case
+def calculate_time_difference(arr: pd.DataFrame, miner, gap:int = 3600) -> pd.DataFrame:
+    arr[miner.timeStamp] = pd.to_datetime(arr[miner.timeStamp])
+
+    arr['next_caseID'] = arr[miner.case_id].shift(-1) # Erstelle eine Spalte mit der "caseID" der folgenden Zeile
+    arr['timeDifference'] = pd.Timedelta(seconds=0) # Initialisiere die Zeitdifferenz-Spalte
+
+    for index, row in arr.iterrows():
+        if index < len(arr) - 1 and row[miner.case_id] == row['next_caseID']:
+            time_diff = arr.loc[index + 1, miner.timeStamp] - row[miner.timeStamp]
+            arr.at[index, 'timeDifference'] = time_diff
+
+    arr['timeDifferenceBool'] = arr['timeDifference'].apply(lambda x: x.total_seconds() > gap)
+
+    arr = arr.drop(columns=['next_caseID']) # Removes Temporary row
+    return arr
+
+def find_closest_boundaries(df, index, col_name='isBoundary'):
+    """
+    Finds closest forward and backward indices with True value in a column.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to search.
+        index (int): The index of the reference row.
+        col_name (str, optional): The name of the column containing boolean values.
+            Defaults to 'isBoundary'.
+
+    Returns:
+        tuple: A tuple containing two elements:
+            - forward_index (int): Index of the closest row forward with True in 'col_name'.
+            - backward_index (int): Index of the closest row backward with True in 'col_name'.
+
+    Raises:
+        ValueError: If the index is out of bounds of the DataFrame.
+    """
+
+    if index < 0 or index >= len(df):
+      raise ValueError("Index out of bounds of the DataFrame.")
+
+    # Forward search (excluding the current index)
+    forward_idx = df[index:].loc[df[index:].iloc[:]["isBoundary"] == True].index[0]  # Access first True index
+
+    # Backward search (excluding the current index)
+    backward_idx = df[:index].loc[df[:index].iloc[:]["isBoundary"] == True].index[-1]  # Access last True index (reverse order)
+
+    # Handle cases where there's no boundary value forward/backward
+    if forward_idx == index:
+      forward_idx = None
+    if backward_idx == index:
+      backward_idx = None
+
+    return forward_idx, backward_idx

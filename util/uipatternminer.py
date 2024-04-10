@@ -20,6 +20,9 @@ def tokenize(word):
     cleaned = preprocess_label(word).split(" ")
     return cleaned
 
+# ----- Boundary Event Util ----
+
+
 
 class UIPatternMiner:
 
@@ -254,4 +257,4 @@ class UIPatternMiner:
         """
         return getattr(self, attr_name)
 
-
+    
