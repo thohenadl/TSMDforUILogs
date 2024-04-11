@@ -272,7 +272,7 @@ def windowSizeByBreak(uiLog: pd.DataFrame, timestamp:str="time:timestamp", realB
 # ------ Boundary Information and Evaluation functions -----
 
 # Method to calculate the rolling mean for timeDifferences
-def calculate_running_average_difference(df, n, col_name="timeDifference"):
+def calculate_running_average_difference(df, n:int, upper_boundary:int = 3600, col_name="timeDifference"):
     """
     This function calculates the running average difference between timestamps 
     for the last n events in a pandas dataframe.
@@ -285,11 +285,11 @@ def calculate_running_average_difference(df, n, col_name="timeDifference"):
     Returns:
         pandas.DataFrame: The modified dataframe with a new column named "n-running-difference".
     """
-    df["n-running-difference"] = df[col_name].rolling(window=n).mean()
+    df["n-running-difference"] = df[col_name].rolling(window=n).apply(lambda x: np.clip(x,a_min=0,a_max=upper_boundary).mean(), raw=True)
     return df
 
 # Adding boundary information if time difference >1h between actions in case
-def calculate_time_difference(arr: pd.DataFrame, miner, gap:int = 3600, n_rolling:int = 100) -> pd.DataFrame:
+def calculate_time_difference(arr: pd.DataFrame, timeStampCol:str, gap:int = 3600, n_rolling:int = 100) -> pd.DataFrame:
     """
     Calculates the time difference between consequitive rows and sets the timeDifferenceBool flags
     Static gap takes the gap parameter with default value 3600s (1h)
@@ -301,14 +301,13 @@ def calculate_time_difference(arr: pd.DataFrame, miner, gap:int = 3600, n_rollin
       gap (int: def. 3600): Comparison value for gap between two actions, if higher a gap is detected
       n_rolling (int: def. 100): Input value to calculate the dynamic running value 
     """
-    arr[miner.timeStamp] = pd.to_datetime(arr[miner.timeStamp])
+    arr[timeStampCol] = pd.to_datetime(arr[timeStampCol])
 
-    arr['next_caseID'] = arr[miner.case_id].shift(-1) # Erstelle eine Spalte mit der "caseID" der folgenden Zeile
     arr['timeDifference'] = pd.Timedelta(seconds=0) # Initialisiere die Zeitdifferenz-Spalte
 
     for index, row in arr.iterrows():
-        if index < len(arr) - 1 and row[miner.case_id] == row['next_caseID']:
-          time_diff = arr.loc[index + 1, miner.timeStamp] - row[miner.timeStamp]
+        if index < len(arr) - 1:
+          time_diff = arr.loc[index + 1, timeStampCol] - row[timeStampCol]
           arr.at[index, 'timeDifference'] = time_diff
 
     # Setting static gap
@@ -320,10 +319,10 @@ def calculate_time_difference(arr: pd.DataFrame, miner, gap:int = 3600, n_rollin
     except:
         nothingToDoHere = 1
         # We actually expect it to be integer values already, otherwise something has gone wrong with the df earlier
+    # THe running mean is calculated without considering large gaps, e.g. gaps over 3600s=1h
     arr = calculate_running_average_difference(arr.copy(), n_rolling)
     arr["timeDifferenceBoolRolling"] = arr.apply(lambda row: row['n-running-difference'] < row['timeDifference'], axis=1)
 
-    arr.drop(columns=['next_caseID'], inplace=True) # Removes Temporary row
     return arr
 
 
