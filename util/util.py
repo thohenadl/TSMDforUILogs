@@ -4,6 +4,8 @@ import pandas as pd
 import os
 import random
 import numpy as np
+from scipy.sparse.linalg import eigsh
+from scipy.sparse import csr_matrix
 
 # ---- Tuple Generation for Time Series Data Creation ----
 def createDict(someSet) -> dict:
@@ -87,8 +89,8 @@ def select_consecutive_rows(df, n):
     start_idx = np.random.randint(0, len(df) - n + 1)
     return df.iloc[start_idx:start_idx + n]
 
-def get_rand_uiLog(df, n_max=10, actions=9600):
-    """Selects n random consecutive rows from a DataFrame.
+def get_rand_uiLog(df, n_max:int=10, actions:int=9600):
+    """Selects random n consequitive rows from a DataFrame.
 
     Args:
       df (pd.DataFrame): The DataFrame to select from.
@@ -99,18 +101,18 @@ def get_rand_uiLog(df, n_max=10, actions=9600):
     Returns:
       pd.DataFrame: A DataFrame containing the selected rows.
     """
-     # Use random sample and size parameter for efficiency
-    ui_log = df.sample(min(len(df), actions), replace=True, ignore_index=True)
-    
-    # Ensure desired number of actions are present, adjusting n_max if necessary
-    while len(ui_log) < actions and n_max < len(df):
-        n_max += 1  # Increase n_max if not enough rows obtained
-        additional_rows = df.sample(min(len(df) - len(ui_log), n_max), replace=True)
-        ui_log = pd.concat([ui_log, additional_rows], ignore_index=True)
-    
-    return ui_log[:actions]  # Return only the desired number of actions
+    # Use random sample and size parameter for efficiency
+    ui_log = pd.DataFrame()
+    while(len(ui_log) < actions):
+        # Slow way, optimized by getting multiple random indecies at once
+        index = random.randint(0,len(df)-n_max)
+        sequence = df.iloc[index:index+n_max]
+        concat_Series = [ui_log,sequence]
+        ui_log = pd.concat(concat_Series)
 
-def get_random_values(df, column_name, m, min_len=1):
+    return ui_log
+
+def get_random_values(df: pd.DataFrame, column_name: str, m: int, min_len:int=1):
     """
     Gets r random values from a specified column in a DataFrame.
     
@@ -148,7 +150,7 @@ def reorder_dataframe(df, reorder_percentage=10, inplace=False):
       pd.DataFrame: The reordered DataFrame.
     """
     
-    if not 0 < reorder_percentage <= 1:
+    if not 0 < reorder_percentage <= 100:
         raise ValueError("reorder_percentage must be between 0 and 100.")
     
     if not inplace:
@@ -200,6 +202,8 @@ def remove_n_percent_rows(df, n):
 def insert_rows_at_random(df: pd.DataFrame, insert_df: pd.DataFrame, o: int, 
                           shuffled:bool=False, shuffled_by:int=10, reduced:bool=False, reduced_by:bool=10):
     """
+    Deprecated and replaced with function: insert_motifs_non_overlap
+    
     Inserts rows from one DataFrame into another at random positions o times, keeping them together.
     
     Args:
@@ -214,9 +218,8 @@ def insert_rows_at_random(df: pd.DataFrame, insert_df: pd.DataFrame, o: int,
     Returns:
       pd.DataFrame: The modified DataFrame with inserted rows.
     """
-    # Get 
     # Ensure valid range for random numbers (from 0 to df_length - 1)
-    valid_range = (0, len(df)-1)
+    valid_range = (0, len(df.index)-1)
     # Generate random numbers and limit them to the valid range
     index_list = sorted([random.randint(*valid_range) for _ in range(o)])
     for insert_indices in index_list:
@@ -229,6 +232,49 @@ def insert_rows_at_random(df: pd.DataFrame, insert_df: pd.DataFrame, o: int,
             insert_df = remove_n_percent_rows(insert_df,reduced_by)
         df = pd.concat([df.iloc[:insert_indices], insert_df, df.iloc[insert_indices:]], ignore_index=True)
     return df, index_list
+
+def insert_motifs_non_overlap(random_cases_list, uiLog, dfcases, occurances, case_column_name, sorted_insert_col, 
+                              shuffled:bool=False, shuffled_by:int=10, reduced:bool=False, reduced_by:int=10):
+    """
+    random_cases_list (List): n cases that should be taken from all possibles to be inserted
+    uiLog (df): Prepared uiLog containing no motifs
+    dfcases (df): Dataframe containing all possible cases
+    occurances (int): Number of times the motifs/cases should be added
+    case_column_name (str): Name of the case id column
+    sorted_insert_col (str): Name of the column to sort the dataframe for insertion
+    shuffled (bool): Should the dataframe to be inserted be shuffled
+    shuffled_by (int): Percent (as int not float) to shuffle by
+    reduced (bool): Should the dataframe to be inserted be reduced
+    reduced_by (int): Percent (as int not float) to reduce by
+    """
+    random_cases_list = random_cases_list * occurances
+    random.shuffle(random_cases_list)
+    
+    # Generate random numbers and limit them to the valid range
+    # Make them descending to order without random overlap
+    index_list = sorted([random.randint(0,len(uiLog)-1) for _ in range(len(random_cases_list))],reverse=True) 
+    
+    # Filter rows with values in the list, because the length is shorter for the following loop
+    filtered_df = dfcases[dfcases[case_column_name].isin(random_cases_list)]
+
+    # Inserting the routines top down
+    for i, routine in enumerate(random_cases_list):
+        filepath = f"test_{i}.csv"
+        # Get the case elements and order by sorted_insert_col (timestamp)
+        insert_df = filtered_df[filtered_df[case_column_name] == random_cases_list[i]].sort_values(sorted_insert_col)
+        
+        if reduced:
+            insert_df = remove_n_percent_rows(insert_df,reduced_by)
+        if shuffled:
+            insert_df = reorder_dataframe(insert_df,shuffled_by)
+        
+        uiLog = pd.concat([uiLog.iloc[:index_list[i]], insert_df, uiLog.iloc[index_list[i]:]], ignore_index=True)
+        # Correct the indexes by the length of the inserted dataframe (routine)
+        index_list = [x+len(insert_df) for x in index_list[:i]] + index_list[i:]
+        
+        # For debugging the index list correction
+        print(f"After: Index loop i = {i}, Len UI Log = {len(uiLog)}, random cases list len = {len(random_cases_list)}, indices = {index_list}")
+    return uiLog, index_list
 
 # ---- Window Size Selection ----
 def windowSizeByBreak(uiLog: pd.DataFrame, timestamp:str="time:timestamp", realBreakThreshold:float=950.0, percentil:int=75) -> int:
@@ -362,3 +408,89 @@ def find_closest_boundaries(df, index, col_name='isBoundary'):
       backward_idx = None
 
     return forward_idx, backward_idx
+
+
+# ---- Optimizing Encoding of values -----
+
+def co_occurrence_matrix_n(df: pd.DataFrame, n: int, coOccuranceCol: str):
+  """
+  Generates a co-occurrence matrix for n values before and after each row in a DataFrame.
+
+  Args:
+      df (pd.DataFrame): The DataFrame containing the concept:name column.
+      n (int): The number of values to consider before and after the index value.
+      coOccuranceCol (str): The column for which the co-occurance should be counted
+
+  Returns:
+      pd.DataFrame: The co-occurrence matrix.
+  """
+  # Add padding values
+  padding = ["PAD"] * n
+  df_padded = pd.concat([pd.Series(padding), df[coOccuranceCol]], ignore_index=True)
+  df_padded = pd.concat([df_padded, pd.Series(padding)], ignore_index=True)
+
+  # Create co-occurrence matrix
+  co_matrix = pd.DataFrame(columns=df_padded.unique(), index=df_padded.unique())
+  co_matrix.fillna(0, inplace=True)
+
+  # Iterate through rows (excluding padding rows)
+  for i in range(n, len(df_padded) - n - 1):
+    current = df_padded.iloc[i]
+    # Get n values before and after
+    previous_values = df_padded.iloc[i-n:i].tolist()
+    next_values = df_padded.iloc[i+1:i+n+1].tolist()
+
+    # Increment co-occurrence counts
+    for prev in previous_values:
+      co_matrix.loc[current, prev] += 1
+    for next in next_values:
+      co_matrix.loc[current, next] += 1
+
+  # Remove padding rows and columns
+  try:
+      co_matrix = co_matrix.drop("PAD", axis=1)
+  except:
+    print("PAD column could not be removed or was not present in dataframe.")
+  try:
+      co_matrix = co_matrix.drop("PAD", axis=0)
+  except:
+    print("PAD row could not be removed or was not present in dataframe.")
+  
+  return co_matrix
+
+
+def spectral_ordering_cooccurrence(co_matrix):
+  """
+  Reorders a co-occurrence matrix using spectral ordering.
+
+  Args:
+      co_matrix (pd.DataFrame): The co-occurrence matrix.
+
+  Returns:
+      pd.DataFrame: The reordered co-occurrence matrix.
+  """
+  # Check if matrix is already sparse
+  if not isinstance(co_matrix, pd.SparseDtype):
+    # Convert dense matrix to sparse csr_matrix format
+    co_matrix_sparse = csr_matrix(co_matrix.values, dtype=float)
+  else:
+    # Use the existing sparse matrix
+    co_matrix_sparse = co_matrix
+
+  # Calculate normalized Laplacian matrix
+  degree_matrix = np.diag(co_matrix_sparse.sum(axis=0))
+  laplacian_matrix = degree_matrix - co_matrix_sparse
+
+  # Get the second smallest eigenvector (Fiedler vector)
+  _, eigenvectors = eigsh(laplacian_matrix, k=2, which='SM')
+  fiedler_vector = eigenvectors[:, 1]
+
+  # Sort indices based on Fiedler vector values
+  sorted_indices = fiedler_vector.argsort()
+
+  # Reorder rows and columns based on sorted indices
+  reordered_matrix = co_matrix.iloc[sorted_indices, :]
+  reordered_matrix = reordered_matrix.iloc[:, sorted_indices]
+
+  return reordered_matrix
+

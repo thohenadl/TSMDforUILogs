@@ -1,5 +1,6 @@
 logs/AWT/
 logs/your_data.csv
+logs/smartRPA/*
 
 # --- Auto Generated Ignore ----
 # Byte-compiled / optimized / DLL files
