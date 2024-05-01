@@ -238,7 +238,7 @@ def insert_motifs_non_overlap(random_cases_list, uiLog, dfcases, occurances, cas
     """
     random_cases_list (List): n cases that should be taken from all possibles to be inserted
     uiLog (df): Prepared uiLog containing no motifs
-    dfcases (df): Dataframe containing all possible cases
+    dfcases (df): Dataframe containing the filtered cases
     occurances (int): Number of times the motifs/cases should be added
     case_column_name (str): Name of the case id column
     sorted_insert_col (str): Name of the column to sort the dataframe for insertion
@@ -247,6 +247,7 @@ def insert_motifs_non_overlap(random_cases_list, uiLog, dfcases, occurances, cas
     reduced (bool): Should the dataframe to be inserted be reduced
     reduced_by (int): Percent (as int not float) to reduce by
     """
+    # Shuffle the cases occurrance times into the list
     random_cases_list = random_cases_list * occurances
     random.shuffle(random_cases_list)
     
@@ -254,14 +255,10 @@ def insert_motifs_non_overlap(random_cases_list, uiLog, dfcases, occurances, cas
     # Make them descending to order without random overlap
     index_list = sorted([random.randint(0,len(uiLog)-1) for _ in range(len(random_cases_list))],reverse=True) 
     
-    # Filter rows with values in the list, because the length is shorter for the following loop
-    filtered_df = dfcases[dfcases[case_column_name].isin(random_cases_list)]
-
     # Inserting the routines top down
     for i, routine in enumerate(random_cases_list):
-        filepath = f"test_{i}.csv"
         # Get the case elements and order by sorted_insert_col (timestamp)
-        insert_df = filtered_df[filtered_df[case_column_name] == random_cases_list[i]].sort_values(sorted_insert_col)
+        insert_df = dfcases[dfcases[case_column_name] == random_cases_list[i]].sort_values(sorted_insert_col)
         
         if reduced:
             insert_df = remove_n_percent_rows(insert_df,reduced_by)
@@ -274,7 +271,7 @@ def insert_motifs_non_overlap(random_cases_list, uiLog, dfcases, occurances, cas
         
         # For debugging the index list correction
         print(f"After: Index loop i = {i}, Len UI Log = {len(uiLog)}, random cases list len = {len(random_cases_list)}, indices = {index_list}")
-    return uiLog, index_list
+    return uiLog, index_list, random_cases_list
 
 # ---- Window Size Selection ----
 def windowSizeByBreak(uiLog: pd.DataFrame, timestamp:str="time:timestamp", realBreakThreshold:float=950.0, percentil:int=75) -> int:
@@ -469,10 +466,12 @@ def spectral_ordering_cooccurrence(co_matrix):
   Returns:
       pd.DataFrame: The reordered co-occurrence matrix.
   """
+  # If there are issues with the ARPACK look here: https://docs.scipy.org/doc/scipy/tutorial/arpack.html
   # Check if matrix is already sparse
   if not isinstance(co_matrix, pd.SparseDtype):
     # Convert dense matrix to sparse csr_matrix format
     co_matrix_sparse = csr_matrix(co_matrix.values, dtype=float)
+    print("i am not sparse")
   else:
     # Use the existing sparse matrix
     co_matrix_sparse = co_matrix
@@ -482,7 +481,7 @@ def spectral_ordering_cooccurrence(co_matrix):
   laplacian_matrix = degree_matrix - co_matrix_sparse
 
   # Get the second smallest eigenvector (Fiedler vector)
-  _, eigenvectors = eigsh(laplacian_matrix, k=2, which='SM')
+  _, eigenvectors = eigsh(laplacian_matrix, k=2, which='LM',  tol=1E-2)
   fiedler_vector = eigenvectors[:, 1]
 
   # Sort indices based on Fiedler vector values
