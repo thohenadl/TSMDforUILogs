@@ -7,6 +7,9 @@ import numpy as np
 from scipy.sparse.linalg import eigsh
 from scipy.sparse import csr_matrix
 
+import stumpy
+import ast
+
 # ---- Tuple Generation for Time Series Data Creation ----
 def createDict(someSet) -> dict:
     theDict = {}
@@ -28,7 +31,62 @@ def get_id(row, tuples, columns):
         element_index = tuples.index(tuple(row[columns]))
         return element_index
     except ValueError:
-        return -1 
+        return -1
+    
+def encoding_UiLog(uiLog: pd.DataFrame, cooccuranceBased: bool=False, cooccurance_distance: int=2):
+    if cooccuranceBased:
+        # Encode the application data by Cooccurance
+        application_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "application")
+        application_matrix = spectral_ordering_cooccurrence(application_co_matrix)
+        applicationDict = createDict(list(application_matrix))
+        # Encode the concept name (action) by Cooccurance
+        concept_name_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "concept:name")
+        concept_name_matrix = spectral_ordering_cooccurrence(concept_name_co_matrix)
+        conceptNamesDict = createDict(list(concept_name_matrix))
+    else:
+        # Encode application by appearing order
+        applicationDict = createDict(set(uiLog['application'].unique()))
+        # Encode concept name (action) by appearing order sorted per application
+        conceptNamesDict = createDict(list(uiLog.sort_values(by=['application'])['concept:name'].unique()))
+
+    # Encode the categories with no special order as they are very few
+    categoriesDict = createDict(set(uiLog.sort_values(by=['category'])['category'].unique()))
+    # Add as new column to the dataframe
+    uiLog['application:id'] = uiLog.apply(lambda row: get_key(row, applicationDict, 'application'), axis=1)
+    uiLog['concept:name:id'] = uiLog.apply(lambda row: get_key(row, conceptNamesDict, 'concept:name'), axis=1)
+    uiLog['category:id'] = uiLog.apply(lambda row: get_key(row, categoriesDict, 'category'), axis=1)
+
+    # Encode all ids into a single value for univariate discovery by using tumples
+    numbersDF = uiLog[['concept:name:id', 'application:id', 'category:id']]
+
+    # Generate unique tuples for indexing the individual combinations of the rows mentioned
+    unique_df = numbersDF.drop_duplicates(subset=numbersDF.columns, keep='first')
+    tuples = [tuple(row[['concept:name:id', 'application:id', 'category:id']]) for i, row in unique_df.sort_values(by='application:id').iterrows()]
+          
+    uiLog['tuple:id'] = uiLog.apply(lambda row: get_id(row, tuples, columns=['concept:name:id','application:id', 'category:id']), axis=1)
+
+    return uiLog
+
+# ---- Motif Discovery ----
+
+def discover_motifs(uiLog: pd.DataFrame, window_size: int=25):
+    """
+    Args:
+      uiLog (DataFrame): Encoded uiLog containing the columns in text and integer format
+
+    Returns:
+      stumpy tm_matrix
+    """
+    starting_row = 0
+    ending_row = len(uiLog)-1
+    #Extract ids and rows
+    ids = uiLog.loc[starting_row:ending_row,'tuple:id'].tolist()
+    rows = [i for i in range(len(uiLog.loc[starting_row:ending_row,'tuple:id']))]
+
+    event_series = uiLog.loc[starting_row:ending_row,'tuple:id'].values.astype(float)
+    tm_matrix = stumpy.stump(event_series, window_size)
+
+    return tm_matrix, event_series
 
 # ---- Validation Data Generation ----
 def read_csvs_and_combine(folder_path, max_rows=100000):
@@ -102,13 +160,35 @@ def get_rand_uiLog(df, n_max:int=10, actions:int=9600):
       pd.DataFrame: A DataFrame containing the selected rows.
     """
     # Use random sample and size parameter for efficiency
+    if n_max == 1:
+      # For faster calculation
+      return get_completely_random_uiLog(df,actions)
+    
     ui_log = pd.DataFrame()
     while(len(ui_log) < actions):
+        if (len(ui_log) % 1000) == 0:
+          print(f"Current generated UiLog length: {len(ui_log)}")
         # Slow way, optimized by getting multiple random indecies at once
         index = random.randint(0,len(df)-n_max)
         sequence = df.iloc[index:index+n_max]
         concat_Series = [ui_log,sequence]
         ui_log = pd.concat(concat_Series)
+
+    return ui_log
+
+def get_completely_random_uiLog(df, actions=9600):
+    if actions <= 0:
+          raise ValueError("actions must be a positive integer")
+
+    # Generate random starting indices efficiently using numpy.random.randint
+    indices = random.sample(range(0, min(len(df)-1,actions)), min(len(df)-1,actions))
+    while len(indices)-1 < actions:
+        more_indices = random.sample(range(0, min(len(df)-1,actions)), min(len(df)-1,actions))
+        indices = indices + more_indices
+
+    # Select rows using efficient indexing and concatenation
+    indices = indices[:actions]
+    ui_log = pd.concat([df.iloc[i:i+1] for i in indices])
 
     return ui_log
 
@@ -150,7 +230,7 @@ def reorder_dataframe(df, reorder_percentage=10, inplace=False):
       pd.DataFrame: The reordered DataFrame.
     """
     
-    if not 0 < reorder_percentage <= 100:
+    if not 0 <= reorder_percentage <= 100:
         raise ValueError("reorder_percentage must be between 0 and 100.")
     
     if not inplace:
@@ -270,7 +350,7 @@ def insert_motifs_non_overlap(random_cases_list, uiLog, dfcases, occurances, cas
         index_list = [x+len(insert_df) for x in index_list[:i]] + index_list[i:]
         
         # For debugging the index list correction
-        print(f"After: Index loop i = {i}, Len UI Log = {len(uiLog)}, random cases list len = {len(random_cases_list)}, indices = {index_list}")
+        # print(f"After: Index loop i = {i}, Len UI Log = {len(uiLog)}, random cases list len = {len(random_cases_list)}, indices = {index_list}")
     return uiLog, index_list, random_cases_list
 
 # ---- Window Size Selection ----
@@ -471,7 +551,6 @@ def spectral_ordering_cooccurrence(co_matrix):
   if not isinstance(co_matrix, pd.SparseDtype):
     # Convert dense matrix to sparse csr_matrix format
     co_matrix_sparse = csr_matrix(co_matrix.values, dtype=float)
-    print("i am not sparse")
   else:
     # Use the existing sparse matrix
     co_matrix_sparse = co_matrix
@@ -493,3 +572,57 @@ def spectral_ordering_cooccurrence(co_matrix):
 
   return reordered_matrix
 
+
+
+# ---- Supporting Functions for Data Processing ----
+def extract_numbers(text):
+  """
+  This function extracts all numbers from a string representation of a list.
+
+  Args:
+      text: The string containing the list representation (e.g., "[584,12839,129239,222]").
+
+  Returns:
+      A list of integers extracted from the string.
+  """
+  # Remove square brackets using slicing
+  text_without_brackets = text[1:-1]
+
+  # Use ast.literal_eval for safe conversion (handles potential malformed strings)
+  try:
+    number_list = ast.literal_eval(text_without_brackets)
+  except (ValueError, SyntaxError):
+    # Handle potential exceptions during conversion (e.g., malformed string)
+    return []
+
+  # Ensure all elements are integers
+  return [int(num) for num in number_list]  # List comprehension for conversion
+
+def compare_sets(set1, set2, n):
+  """
+  This function compares two sets of numbers represented as strings and identifies values within a range.
+
+  Args:
+      set1: The first originally inserted motifs in the validation log
+      set2: The discovered motifs from the stumpy algorithm
+      n: The range, e.g., half the window size, to discover missalignment
+
+  Returns:
+      identified_values: The motifs in the original validation log indexes of matches
+      motif_values: The motifs index based on the motif stumpy discovery
+      set_matches: A dataframe containing the values and the alignment score
+  """
+  set_matches = pd.DataFrame(columns=["originalMotif","discoveredMotif","alignmentAccuracy"])
+  identified_values = []
+  motif_values = []
+  for num1 in set1:
+    for num2 in set2:
+      # Check if values are within the range n (considering absolute difference)
+      if abs(num1 - num2) <= n:
+        identified_values.append(num1)
+        motif_values.append(num2)
+        dict1 = {"originalMotif": num1, "discoveredMotif": num2, "alignmentAccuracy": abs(num1 - num2)}
+        set_matches = set_matches._append(dict1, ignore_index=True)
+        break  # Avoid duplicates if multiple values in set2 are within range
+
+  return identified_values, motif_values, set_matches
