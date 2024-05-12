@@ -88,6 +88,20 @@ def discover_motifs(uiLog: pd.DataFrame, window_size: int=25):
 
     return tm_matrix, event_series
 
+def reduceLogToDiscovered(dataframe: pd.DataFrame, topMotifIndex: list, windowSize: int):
+    new_df = pd.DataFrame(columns=dataframe.columns.tolist() + ["case"])  # Add case column
+    case_id = 0
+    for start_index in topMotifIndex:
+      # Ensure start index is within dataframe bounds
+      if start_index < 0 or start_index >= len(dataframe):
+        continue
+      end_index = min(start_index + windowSize, len(dataframe))  # Handle potential out-of-bounds end index
+      window_df = dataframe.iloc[start_index:end_index].copy()
+      window_df["case:concept:name"] = case_id
+      new_df = pd.concat([new_df, window_df], ignore_index=True)
+      case_id += 1
+    return new_df
+
 # ---- Validation Data Generation ----
 def read_csvs_and_combine(folder_path, max_rows=100000):
    """Reads all CSV files in a folder, combines them into a single DataFrame, and stops reading if the limit is reached.
@@ -447,8 +461,6 @@ def calculate_time_difference(arr: pd.DataFrame, timeStampCol:str, gap:int = 360
     arr["timeDifferenceBoolRolling"] = arr.apply(lambda row: row['n-running-difference'] < row['timeDifference'], axis=1)
 
     return arr
-
-
 
 def find_closest_boundaries(df, index, col_name='isBoundary'):
     """
