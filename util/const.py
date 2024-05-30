@@ -120,3 +120,48 @@ conceptNames = {
     'openPresentation','printPresentation','slideshowBegin','nextSlideshow','clickNextSlideshow','previousSlideshow','slideshowEnd','SlideSelectionChanged',
     'startupOutlook','quitOutlook','receiveMail','sendMail','logonComplete','newReminder'
     }
+
+dtype = {
+    'event_src_path': str,
+    'event_dest_path': str,
+    'clipboard_content': str,
+    'mouse_coord': str,  # May benefit from a custom format string
+    'workbook': str,
+    'current_worksheet': str,
+    'worksheets': str,
+    'sheets': str,
+    'cell_content': str,
+    'cell_range': str,
+    'cell_range_number': str,  # May benefit from a custom format string
+    'window_size': str,  # May benefit from a custom format string
+    'slides': str,
+    'effect': str,
+    'hotkey': str,
+    'id': str,
+    'title': str,
+    'description': str,
+    'browser_url': str,
+    'eventQual': str,
+    'tab_moved_from_index': str,  # May benefit from a custom format string (if numeric)
+    'tab_moved_to_index': str,  # May benefit from a custom format string (if numeric)
+    'newZoomFactor': str,  # May benefit from a custom format string (if numeric)
+    'oldZoomFactor': str,  # May benefit from a custom format string (if numeric)
+    'tab_pinned': str,  # May convert to boolean later if analysis requires
+    'tab_audible': str,  # May convert to boolean later if analysis requires
+    'tab_muted': str,  # May convert to boolean later if analysis requires
+    'window_ingognito': str,  # May convert to boolean later if analysis requires
+    'file_size': str,  # May benefit from a custom format string (if numeric)
+    'tag_category': str,
+    'tag_type': str,
+    'tag_name': str,
+    'tag_title': str,
+    'tag_value': str,
+    'tag_checked': str,  # May convert to boolean later if analysis requires
+    'tag_html': str,
+    'tag_href': str,
+    'tag_innerText': str,
+    'tag_option': str,
+    'tag_attributes': str,
+    'xpath': str,
+    'xpath_full': str
+}

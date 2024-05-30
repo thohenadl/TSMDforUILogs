@@ -33,24 +33,54 @@ def get_id(row, tuples, columns):
     except ValueError:
         return -1
     
-def encoding_UiLog(uiLog: pd.DataFrame, cooccuranceBased: bool=False, cooccurance_distance: int=2):
-    if cooccuranceBased:
-        # Encode the application data by Cooccurance
-        application_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "application")
-        application_matrix = spectral_ordering_cooccurrence(application_co_matrix)
-        applicationDict = createDict(list(application_matrix))
-        # Encode the concept name (action) by Cooccurance
-        concept_name_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "concept:name")
-        concept_name_matrix = spectral_ordering_cooccurrence(concept_name_co_matrix)
-        conceptNamesDict = createDict(list(concept_name_matrix))
-    else:
-        # Encode application by appearing order
-        applicationDict = createDict(set(uiLog['application'].unique()))
-        # Encode concept name (action) by appearing order sorted per application
-        conceptNamesDict = createDict(list(uiLog.sort_values(by=['application'])['concept:name'].unique()))
+def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","application","concept:name"],
+                   cooccuranceBased: bool=False, cooccurance_distance: int=2,
+                   hierarchy_based: bool=False):
+    '''
+    Method to encode the UILog based on the selected method. Default Method is continuous hot encoding.
+    Default assumption is to encode a SmartRPA generated UI log with the columns "category", "application", and "concept:name".
 
-    # Encode the categories with no special order as they are very few
-    categoriesDict = createDict(set(uiLog.sort_values(by=['category'])['category'].unique()))
+    Parameters:
+      uiLog (pd.DataFrame): Dataframe containing the UI Log
+      cooccuranceBased (Bool / Default False): Calculate the Index based on Co-Occurrance of attributes
+      cooccurance_distance (Int / Default 2): Distance to be considered for the co-occurrance matrix counting
+      hierarchy_based (Bool / Default False): If True Encodes based on the shared hierarchy
+      orderedColumnsList (List / Default SmartRPA Columns): Ordered List of columns containing the attributes from the UI Log
+
+    Returns:
+      Encoded UI log containing the column "tuple:id" as encoded value
+      If Continuous Hot Encoding or cooccurance Based Encoding it returns additionally the encoded columns "application", "category", and "concept:name" 
+    '''
+    if cooccuranceBased:
+      # Encode the application data by Cooccurance
+      application_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "application")
+      application_matrix = spectral_ordering_cooccurrence(application_co_matrix)
+      applicationDict = createDict(list(application_matrix))
+      # Encode the concept name (action) by Cooccurance
+      concept_name_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "concept:name")
+      concept_name_matrix = spectral_ordering_cooccurrence(concept_name_co_matrix)
+      conceptNamesDict = createDict(list(concept_name_matrix))
+      # Encode the categories with no special order as they are very few
+      categoriesDict = createDict(set(uiLog.sort_values(by=['category'])['category'].unique()))
+    elif hierarchy_based:
+      # Get all Unique Combinations
+      uniqueDF = uiLog[orderedColumnsList].drop_duplicates()
+      # Group them based on hierarchy order
+      uniqueDF.groupby(by=orderedColumnsList,as_index=True,dropna=False)
+      uniqueDF.sort_values(by=orderedColumnsList,inplace=True,ignore_index=True)
+      uniqueDF = uniqueDF.reset_index(names='tuple:id')
+      # Merge DF based on SQL Statement
+      return pd.merge(uiLog,uniqueDF, how="left", on=orderedColumnsList)
+    
+    else: # Continuous Hot Encoding
+      # Encode application by appearing order
+      applicationDict = createDict(set(uiLog['application'].unique()))
+      # Encode concept name (action) by appearing order sorted per application
+      conceptNamesDict = createDict(list(uiLog.sort_values(by=['application'])['concept:name'].unique()))
+      # Encode the categories with no special order as they are very few
+      categoriesDict = createDict(set(uiLog.sort_values(by=['category'])['category'].unique()))
+
+    # ToDo: Add Method to generate encodings based on column names -> For Now use the Hierarchy based encoding always
     # Add as new column to the dataframe
     uiLog['application:id'] = uiLog.apply(lambda row: get_key(row, applicationDict, 'application'), axis=1)
     uiLog['concept:name:id'] = uiLog.apply(lambda row: get_key(row, conceptNamesDict, 'concept:name'), axis=1)
@@ -80,16 +110,27 @@ def discover_motifs(uiLog: pd.DataFrame, window_size: int=25):
     starting_row = 0
     ending_row = len(uiLog)-1
     #Extract ids and rows
-    ids = uiLog.loc[starting_row:ending_row,'tuple:id'].tolist()
-    rows = [i for i in range(len(uiLog.loc[starting_row:ending_row,'tuple:id']))]
-
     event_series = uiLog.loc[starting_row:ending_row,'tuple:id'].values.astype(float)
     tm_matrix = stumpy.stump(event_series, window_size)
 
     return tm_matrix, event_series
 
 def reduceLogToDiscovered(dataframe: pd.DataFrame, topMotifIndex: list, windowSize: int):
-    new_df = pd.DataFrame(columns=dataframe.columns.tolist() + ["case"])  # Add case column
+    """
+    Reduces a pandas DataFrame containing event logs to only the discovered motifs based on provided indices and window size.
+
+    Args:
+    - dataframe (pd.DataFrame): The input DataFrame containing the event logs. It's assumed that the DataFrame has a column structure representing the event sequence.
+    - topMotifIndex (list): A list of integer indices representing the starting positions of the discovered motifs within the original DataFrame.
+    - windowSize (int): The window size used for motif discovery.
+
+    The function iterates through the provided `topMotifIndex` list and extracts the corresponding subsequences from the original DataFrame. Each extracted subsequence represents a discovered motif. To ensure data integrity, the function handles potential out-of-bounds index errors by checking if the start index falls within the DataFrame boundaries. Additionally, the end index is adjusted to avoid exceeding the DataFrame length.
+    The extracted subsequences (motifs) are then augmented with a new column named "case:concept:name" containing a unique case identifier. This identifier helps distinguish between different discovered motifs within the resulting DataFrame. Finally, all extracted motifs are concatenated into a new DataFrame and returned.
+
+    Returns:
+        pd.DataFrame: A new DataFrame containing only the discovered motifs extracted from the original DataFrame, with an additional column "case:concept:name" for case identification.
+    """
+    new_df = pd.DataFrame(columns=dataframe.columns.tolist() + ["case:concept:name"])  # Add case column
     case_id = 0
     for start_index in topMotifIndex:
       # Ensure start index is within dataframe bounds
@@ -251,12 +292,10 @@ def reorder_dataframe(df, reorder_percentage=10, inplace=False):
         df = df.copy()  # Create a copy if not modifying in-place
     
     # Get the number of elements to reorder
-    num_elements_to_reorder = int(len(df) * (reorder_percentage/100))
-    
+    num_elements_to_reorder = round(len(df) * (reorder_percentage/100))
     # Randomly select elements to reorder, ensuring they are within valid range (0 to len(df) - 1)
-    valid_range = (0, len(df) - 1)
+    valid_range = (0, len(df) - 2)
     elements_to_reorder = [random.randint(*valid_range) for _ in range(num_elements_to_reorder)]
-    
     # Shuffle the selected elements within the list
     random.shuffle(elements_to_reorder)
     
