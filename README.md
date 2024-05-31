@@ -37,9 +37,10 @@ You can create your own set and follow the process of the log creation by utiliz
 
 <details>
 
-<summary>Setting the parameters</summary>
+<summary>Setting up the parameters as in the paper</summary>
 
-### To create validation data as in the publication use the following parameter setup
+> [!TIP]
+> To create validation data as in the publication use the following parameter setup
 
 
 ```randomness = [1] # Length of sampling sequence, when creating the baseline log (1=> only one event inserted, 2=> sequences of 2 from all possible events inserted ...)
