@@ -39,9 +39,7 @@ You can create your own set and follow the process of the log creation by utiliz
 
 <summary>Setting up the parameters as in the paper</summary>
 
-[!TIP]
 To create validation data as in the publication use the following parameter setup
-
 
 ```randomness = [1] # Length of sampling sequence, when creating the baseline log (1=> only one event inserted, 2=> sequences of 2 from all possible events inserted ...)
 motifs = [1] # how many different motifs should be inserted into the log
@@ -54,3 +52,10 @@ shuffles = [0,10,20] # Percentage by which the inserted routine should be shuffl
 </details>
 
 ## Experiment Notebook
+To execute the experiment and gather the insights as presented in the paper, just two steps are necessary:
+
+1. Put the correct path in the parameters
+2. Specify the list of window sizes that should be tested
+
+Afterwards, the experiment can be executed and will create a .csv file containing the parameters as defined in the publication.
+Once the file is converted into an XLSX file and the data is seperated into columns, the pivot function allows for creation of the graphs visualized in the paper.
