@@ -32,5 +32,24 @@ Please specifiy your file, the columns you aligned to the reference model, and t
 The **third section** does execute the encoding, discovery, and visualisation. Do not change anything in there to have the approach working.
 
 ## Validation Log Creation Notebook
+As described in the evaluation section of the paper, the experiment relies on a set of arteficially created user interaction logs.
+You can create your own set and follow the process of the log creation by utilizing the "validationLogCreation" notebook.
+
+<details>
+
+<summary>Setting the parameters</summary>
+
+### To create validation data as in the publication use the following parameter setup
+
+
+```randomness = [1] # Length of sampling sequence, when creating the baseline log (1=> only one event inserted, 2=> sequences of 2 from all possible events inserted ...)
+motifs = [1] # how many different motifs should be inserted into the log
+occurances = [10,15,20,30,60] # Number of motif appearances in the log
+lengthMotifs = [5,10,15,20,25] # Length of the Motifs to be inserted
+percentageMotifsOverLog = [10,5,2.5,1] # Percentage representation of the Motif in the log
+shuffles = [0,10,20] # Percentage by which the inserted routine should be shuffled
+```
+
+</details>
 
 ## Experiment Notebook
