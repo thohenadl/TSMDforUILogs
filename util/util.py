@@ -232,18 +232,30 @@ def get_rand_uiLog(df, n_max:int=10, actions:int=9600):
     return ui_log
 
 def get_completely_random_uiLog(df, actions=9600):
-    if actions <= 0:
-          raise ValueError("actions must be a positive integer")
+    """
+    Generates a random user interaction (UI) log by sampling rows from the provided DataFrame.
 
-    # Generate random starting indices efficiently using numpy.random.randint
+    This function takes two arguments:
+
+    - df (pd.DataFrame): The input DataFrame containing the user interaction log data.
+    - actions (int, optional): The desired number of actions in the resulting random UI log. Defaults to 9600.
+
+    Returns:
+        pd.DataFrame: A new DataFrame containing a random selection of rows from the original DataFrame, representing a random UI log with the specified number of actions (or the maximum number of possible actions if `actions` exceeds the original DataFrame length).
+    """
+    if actions <= 0:
+      raise ValueError("Actions must be a positive integer")
+
+    # Generate random indices efficiently using numpy.random.randint
     indices = random.sample(range(0, min(len(df)-1,actions)), min(len(df)-1,actions))
     while len(indices)-1 < actions:
-        more_indices = random.sample(range(0, min(len(df)-1,actions)), min(len(df)-1,actions))
-        indices = indices + more_indices
+      more_indices = random.sample(range(0, min(len(df)-1,actions)), min(len(df)-1,actions))
+      indices = indices + more_indices
 
     # Select rows using efficient indexing and concatenation
     indices = indices[:actions]
-    ui_log = pd.concat([df.iloc[i:i+1] for i in indices])
+    # ui_log = pd.concat([df.iloc[i:i+1] for i in indices])
+    ui_log = df.iloc[indices]
 
     return ui_log
 
