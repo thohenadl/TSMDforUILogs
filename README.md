@@ -6,7 +6,7 @@ With this approach the question is no longer a manual search mission.
 With the TSMD approach large sets of user interaction data, i.e., merged logs, are scanned easy and fast.
 This read-me file describes the three Jupyter notebooks that are relevant for the paper "Where is the Motif"?
 
-## The approach
+## The Approach
 
 ![Detailed Approach Visualisation](images/Approach.png)
 

@@ -130,7 +130,10 @@ def reduceLogToDiscovered(dataframe: pd.DataFrame, topMotifIndex: list, windowSi
     Returns:
         pd.DataFrame: A new DataFrame containing only the discovered motifs extracted from the original DataFrame, with an additional column "case:concept:name" for case identification.
     """
-    new_df = pd.DataFrame(columns=dataframe.columns.tolist() + ["case:concept:name"])  # Add case column
+    if "case:concept:name" not in dataframe.columns:
+      new_df = pd.DataFrame(columns=dataframe.columns.tolist() + ["case:concept:name"])  # Add case column
+    else: 
+      new_df = pd.DataFrame(columns=dataframe.columns.tolist())
     case_id = 0
     for start_index in topMotifIndex:
       # Ensure start index is within dataframe bounds

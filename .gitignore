@@ -1,6 +1,4 @@
-logs/AWT/
-logs/your_data.csv
-logs/smartRPA/*
+logs/*
 archive/*
 
 # --- Auto Generated Ignore ----
