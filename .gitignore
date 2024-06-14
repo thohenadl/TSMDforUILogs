@@ -1,5 +1,6 @@
 logs/*
 archive/*
+discoveryResults/*
 
 # --- Auto Generated Ignore ----
 # Byte-compiled / optimized / DLL files

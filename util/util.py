@@ -141,7 +141,7 @@ def reduceLogToDiscovered(dataframe: pd.DataFrame, topMotifIndex: list, windowSi
         continue
       end_index = min(start_index + windowSize, len(dataframe))  # Handle potential out-of-bounds end index
       window_df = dataframe.iloc[start_index:end_index].copy()
-      window_df["case:concept:name"] = case_id
+      window_df["case:concept:name"] = str(case_id)
       new_df = pd.concat([new_df, window_df], ignore_index=True)
       case_id += 1
     return new_df
