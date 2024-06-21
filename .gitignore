@@ -1,6 +1,7 @@
-logs/*
+logs/AWT/*
+logs/Banking/*
+logs/SmartRPA/XLargeLogs/*
 archive/*
-discoveryResults/*
 
 # --- Auto Generated Ignore ----
 # Byte-compiled / optimized / DLL files
