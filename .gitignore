@@ -1,6 +1,6 @@
 logs/AWT/*
 logs/Banking/*
-logs/SmartRPA/XLargeLogs/*
+logs/smartRPA/XLargeLogs/*
 archive/*
 
 # --- Auto Generated Ignore ----
