@@ -62,7 +62,10 @@ Once the file is converted into an XLSX file and the data is seperated into colu
 
 ## Experiment Results
 
-The experiment results from the paper are available in the folder **logs/smartRPA/percentageComparison/** in the file **Results - Experiment.xlsx**.
-In this file you will find two sheets. The first sheet contains the collected experiment results on which the evaluation section is based on. The second sheet contains the figures presented in the evaluation section of the paper.
+The experiment results from the paper are available in the folder **logs/smartRPA/percentageComparison/** in the file **Results - Experiment.xlsx**. 
+In this file you will find two sheets. The first sheet contains the collected experiment results on which the evaluation section is based on. The second sheet contains the figures presented in the evaluation section of the paper. This file contains the all collected values from the experiment as outlined in the paper:
+
+![Detailed Approach Visualisation](images/ResultTable.png)
+
 You can reproduce the experiment by executin the **experiment** notebook after you have (a) selected the synthetic validation data or (b) run the **Validation Log Creation** notebook.
 The validation data to compare the discovered result by the approach automatically is stored in the file **validationDataPercentage.csv**
