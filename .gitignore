@@ -1,6 +1,8 @@
 logs/AWT/GitIgnore/*
 logs/Banking/GitIgnore/*
 logs/smartRPA/XLargeLogs/*
+logs/smartRPA/percentageComparison/*
+logs/smartRPA/validation/*
 archive/*
 
 # --- Auto Generated Ignore ----
