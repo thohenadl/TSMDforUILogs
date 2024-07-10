@@ -59,3 +59,10 @@ To execute the experiment and gather the insights as presented in the paper, jus
 
 Afterwards, the experiment can be executed and will create a .csv file containing the parameters as defined in the publication.
 Once the file is converted into an XLSX file and the data is seperated into columns, the pivot function allows for creation of the graphs visualized in the paper.
+
+## Experiment Results
+
+The experiment results from the paper are available in the folder **logs/smartRPA/percentageComparison/** in the file **Results - Experiment.xlsx**.
+In this file you will find two sheets. The first sheet contains the collected experiment results on which the evaluation section is based on. The second sheet contains the figures presented in the evaluation section of the paper.
+You can reproduce the experiment by executin the **experiment** notebook after you have (a) selected the synthetic validation data or (b) run the **Validation Log Creation** notebook.
+The validation data to compare the discovered result by the approach automatically is stored in the file **validationDataPercentage.csv**

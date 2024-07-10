@@ -1,7 +1,9 @@
 logs/AWT/GitIgnore/*
 logs/Banking/GitIgnore/*
 logs/smartRPA/XLargeLogs/*
-logs/smartRPA/percentageComparison/*
+logs/smartRPA/percentageComparison/experimentResults19052024.csv
+logs/smartRPA/percentageComparison/experimentResults22052024.csv
+logs/smartRPA/percentageComparison/Results - Experiment - Backup.csv
 logs/smartRPA/validation/*
 archive/*
 
