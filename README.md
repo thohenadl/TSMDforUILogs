@@ -69,3 +69,12 @@ In this file you will find two sheets. The first sheet contains the collected ex
 
 You can reproduce the experiment by executin the **experiment** notebook after you have (a) selected the synthetic validation data or (b) run the **Validation Log Creation** notebook.
 The validation data to compare the discovered result by the approach automatically is stored in the file **validationDataPercentage.csv**
+
+## Real World Experiment
+
+The real-world process was designed based on experience in small and medium size enterprises and reflects a common, yet simplified, version of an accounts payable process.
+The instruction given to the auther is stored in the **logs/Banking/** folder.
+The generated UI logs (SmartRPA/Tockler) are available in the same folder. 
+The logs are anonymized to not reflect any author data.
+
+![Real World Accounts Payable Instruction](logs/Banking/RealWorldProcessInstruction.pdf)
