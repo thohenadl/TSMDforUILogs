@@ -73,8 +73,7 @@ The validation data to compare the discovered result by the approach automatical
 ## Real World Experiment
 
 The real-world process was designed based on experience in small and medium size enterprises and reflects a common, yet simplified, version of an accounts payable process.
-The instruction given to the auther is stored in the **logs/Banking/** folder.
+The instruction given to the auther is stored in the **logs/Banking/** folder: [Real World Accounts Payable Instruction](logs/Banking/RealWorldProcessInstruction.pdf)
 The generated UI logs (SmartRPA/Tockler) are available in the same folder. 
 The logs are anonymized to not reflect any author data.
 
-![Real World Accounts Payable Instruction](logs/Banking/RealWorldProcessInstruction.pdf)
