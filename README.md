@@ -76,4 +76,3 @@ The real-world process was designed based on experience in small and medium size
 The instruction given to the auther is stored in the **logs/Banking/** folder: [Real World Accounts Payable Instruction](logs/Banking/RealWorldProcessInstruction.pdf)
 The generated UI logs (SmartRPA/Tockler) are available in the same folder. 
 The logs are anonymized to not reflect any author data.
-
