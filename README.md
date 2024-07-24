@@ -1,8 +1,9 @@
-# TSMDforUILogs
-Time Series Motif Discovery for User Interaction Logs
+# Time Series Routine Discovery
+Time Series Routine Discovery (TSRD) for User Interaction Logs
 
-Where is the routine? A question asked once a business is looking for automation possibilites.
-With this approach the question is no longer a manual search mission.
+Where is the routine? What routines do we actually do?
+Question asked once a business is looking for automation possibilites.
+With this approach the question is no longer a pure manual search mission.
 With the TSMD approach large sets of user interaction data, i.e., merged logs, are scanned easy and fast.
 This read-me file describes the three Jupyter notebooks that are relevant for the paper "Where is the Motif"?
 
