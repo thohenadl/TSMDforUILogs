@@ -5,7 +5,7 @@ Where is the routine? What routines do we actually do?
 Question asked once a business is looking for automation possibilites.
 With this approach the question is no longer a pure manual search mission.
 With the TSMD approach large sets of user interaction data, i.e., merged logs, are scanned easy and fast.
-This read-me file describes the three Jupyter notebooks that are relevant for the paper "Where is the Motif"?
+This read-me file describes the three Jupyter notebooks that are relevant for the paper "Enabling Routine Discovery from High-Noise UI Logs: A Time Series Data Mining Approach"?
 
 ## The Approach
 

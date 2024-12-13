@@ -99,11 +99,16 @@ def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","a
 
 # ---- Motif Discovery ----
 
-def discover_motifs(uiLog: pd.DataFrame, window_size: int=25):
+def discover_motifs(uiLog: pd.DataFrame, window_size: int=25, normalize=True):
     """
     Args:
       uiLog (DataFrame): Encoded uiLog containing the columns in text and integer format
-
+      window_size (int): Window Size
+      normalize : bool, default True
+        When set to ``True``, this z-normalizes subsequences prior to computing
+        distances. Otherwise, this function gets re-routed to its complementary
+        non-normalized equivalent set in the ``@core.non_normalized`` function
+        decorator.
     Returns:
       stumpy tm_matrix
     """
@@ -111,7 +116,7 @@ def discover_motifs(uiLog: pd.DataFrame, window_size: int=25):
     ending_row = len(uiLog)-1
     #Extract ids and rows
     event_series = uiLog.loc[starting_row:ending_row,'tuple:id'].values.astype(float)
-    tm_matrix = stumpy.stump(event_series, window_size)
+    tm_matrix = stumpy.stump(T_A=event_series, m=window_size, normalize=normalize)
 
     return tm_matrix, event_series
 
