@@ -34,7 +34,7 @@ def get_id(row, tuples, columns):
         return -1
     
 def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","application","concept:name"],
-                   encoding: int=1, cooccurance_distance: int=2, coocurance_combined: bool=False) -> pd.DataFrame:
+                   encoding: int=1, cooccurance_distance: int=2, coocurance_combined: bool=True) -> pd.DataFrame:
     '''
     Method to encode the UILog based on the selected method. Default Method is continuous hot encoding.
     Default assumption is to encode a SmartRPA generated UI log with the columns "category", "application", and "concept:name".
@@ -44,7 +44,7 @@ def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","a
       orderedColumnsList (List / Default SmartRPA Columns): Ordered List of columns containing the attributes from the UI Log
       encoding (Int / Default 1): Encoding Method to be used (1=Hierarchy Encoding, 2=Co-Occurrance Encoding, 3=Hot Ecnoding)
       cooccurance_distance (Int / Default 2): Distance to be considered for the co-occurrance matrix counting
-      coocurance_combined (Bool / Default False): If the columns for cooccurance should be combined into a single value
+      coocurance_combined (Bool / Default True): If the columns for cooccurance should be combined into a single value
 
     Returns:
       Encoded UI log containing the column "tuple:id" as encoded value
@@ -61,42 +61,65 @@ def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","a
       return pd.merge(uiLog,uniqueDF, how="left", on=orderedColumnsList)
     
     elif encoding == 2: # Co-Occurrance Encoding
-      column_dicts = {}
+      result_df = uiLog.copy()
       if coocurance_combined:
-          # Combined co-occurrence approach
-          combined_column = "combined_columns"
-          uiLog[combined_column] = uiLog[orderedColumnsList].astype(str).agg('||'.join, axis=1)
-          co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, combined_column)
-          matrix = spectral_ordering_cooccurrence(co_matrix)
-          combined_dict = createDict(list(matrix))
-          
-          uiLog[f"{combined_column}:id"] = uiLog.apply(lambda row: get_key(row, combined_dict, combined_column), axis=1)
+
+        # Create combined column in result_df
+        result_df['combined'] = result_df[orderedColumnsList].astype(str).agg('|'.join, axis=1)
+        
+        # Create temporary df with combined column for co-occurrence calculation
+        temp_df = result_df.copy()
+        combined_matrix = co_occurrence_matrix_n(temp_df, cooccurance_distance, 'combined')
+        combined_ordered = spectral_ordering_cooccurrence(combined_matrix)
+        combined_dict = createDict(list(combined_ordered))
+        
+        # Apply mapping to result_df using the existing combined column
+        result_df['tuple:id'] = result_df['combined'].map(lambda x: combined_dict.get(x))
+        
+        # Clean up temporary column
+        result_df = result_df.drop('combined', axis=1)
+        
       else:
-          # Individual column encoding approach
-          for column in orderedColumnsList:
-              # Apply co-occurrence matrix and spectral ordering for every column
-              co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, column)
-              matrix = spectral_ordering_cooccurrence(co_matrix)
-              column_dicts[column] = createDict(list(matrix))
-
-          # Encode each column into unique IDs
-          for column in orderedColumnsList:
-              encoded_column = f"{column}:id"
-              uiLog[encoded_column] = uiLog.apply(lambda row: get_key(row, column_dicts[column], column), axis=1)
-
-
-      # Generate tuples for univariate discovery
-      id_columns = [f"{col}:id" for col in orderedColumnsList] if not coocurance_combined else [f"{combined_column}:id"]
-      numbersDF = uiLog[id_columns]
-
-      # Generate unique tuples for indexing combinations
-      unique_df = numbersDF.drop_duplicates(subset=id_columns, keep='first')
-      tuples = [tuple(row[id_columns]) for _, row in unique_df.iterrows()]
-
-      # Add the tuple-based unique ID column
-      uiLog['tuple:id'] = uiLog.apply(lambda row: get_id(row, tuples, columns=id_columns), axis=1)
-
-      return uiLog
+        # Does not function very well, looks like continuous hot encoding
+        # Process each column individually
+        # Process columns hierarchically
+        id_columns = []
+        ordering_columns = []
+        
+        for col in orderedColumnsList:
+            # Calculate co-occurrence and ordering for this column
+            col_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, col)
+            col_ordered = spectral_ordering_cooccurrence(col_matrix)
+            col_dict = createDict(list(col_ordered))
+            
+            # Add column IDs
+            id_col = f"{col}:id"
+            order_col = f"{col}:order"
+            
+            result_df[id_col] = result_df.apply(
+                lambda row: get_key(row, col_dict, col), axis=1)
+            result_df[order_col] = result_df[id_col].map(
+                {val: idx for idx, val in enumerate(sorted(result_df[id_col].unique()))})
+            
+            id_columns.append(id_col)
+            ordering_columns.append(order_col)
+        
+          # Create hierarchical ordering
+        result_df['sequential_order'] = 0
+        multiplier = 1
+        
+        for order_col in reversed(ordering_columns):
+            result_df['sequential_order'] += result_df[order_col] * multiplier
+            multiplier *= len(result_df[order_col].unique())
+        
+        # Generate tuples preserving order
+        result_df = result_df.sort_values('sequential_order').reset_index(drop=True)
+        unique_df = result_df[id_columns].drop_duplicates(keep='first').reset_index(drop=True)
+        tuples = [tuple(row[id_columns]) for _, row in unique_df.iterrows()]
+        result_df['tuple:id'] = result_df.apply(
+            lambda row: get_id(row, tuples, columns=id_columns), axis=1)
+      
+      return result_df
     
       # Old Code with hard coded columns
 
