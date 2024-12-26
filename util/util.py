@@ -34,35 +34,23 @@ def get_id(row, tuples, columns):
         return -1
     
 def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","application","concept:name"],
-                   cooccuranceBased: bool=False, cooccurance_distance: int=2,
-                   hierarchy_based: bool=False):
+                   encoding: int=1, cooccurance_distance: int=2, coocurance_combined: bool=False) -> pd.DataFrame:
     '''
     Method to encode the UILog based on the selected method. Default Method is continuous hot encoding.
     Default assumption is to encode a SmartRPA generated UI log with the columns "category", "application", and "concept:name".
 
     Parameters:
       uiLog (pd.DataFrame): Dataframe containing the UI Log
-      cooccuranceBased (Bool / Default False): Calculate the Index based on Co-Occurrance of attributes
-      cooccurance_distance (Int / Default 2): Distance to be considered for the co-occurrance matrix counting
-      hierarchy_based (Bool / Default False): If True Encodes based on the shared hierarchy
       orderedColumnsList (List / Default SmartRPA Columns): Ordered List of columns containing the attributes from the UI Log
+      encoding (Int / Default 1): Encoding Method to be used (1=Hierarchy Encoding, 2=Co-Occurrance Encoding, 3=Hot Ecnoding)
+      cooccurance_distance (Int / Default 2): Distance to be considered for the co-occurrance matrix counting
+      coocurance_combined (Bool / Default False): If the columns for cooccurance should be combined into a single value
 
     Returns:
       Encoded UI log containing the column "tuple:id" as encoded value
-      If Continuous Hot Encoding or cooccurance Based Encoding it returns additionally the encoded columns "application", "category", and "concept:name" 
     '''
-    if cooccuranceBased:
-      # Encode the application data by Cooccurance
-      application_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "application")
-      application_matrix = spectral_ordering_cooccurrence(application_co_matrix)
-      applicationDict = createDict(list(application_matrix))
-      # Encode the concept name (action) by Cooccurance
-      concept_name_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "concept:name")
-      concept_name_matrix = spectral_ordering_cooccurrence(concept_name_co_matrix)
-      conceptNamesDict = createDict(list(concept_name_matrix))
-      # Encode the categories with no special order as they are very few
-      categoriesDict = createDict(set(uiLog.sort_values(by=['category'])['category'].unique()))
-    elif hierarchy_based:
+
+    if encoding == 1: # Hierarchy Encoding
       # Get all Unique Combinations
       uniqueDF = uiLog[orderedColumnsList].drop_duplicates()
       # Group them based on hierarchy order
@@ -72,30 +60,80 @@ def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","a
       # Merge DF based on SQL Statement
       return pd.merge(uiLog,uniqueDF, how="left", on=orderedColumnsList)
     
-    else: # Continuous Hot Encoding
-      # Encode application by appearing order
-      applicationDict = createDict(set(uiLog['application'].unique()))
-      # Encode concept name (action) by appearing order sorted per application
-      conceptNamesDict = createDict(list(uiLog.sort_values(by=['application'])['concept:name'].unique()))
-      # Encode the categories with no special order as they are very few
-      categoriesDict = createDict(set(uiLog.sort_values(by=['category'])['category'].unique()))
-
-    # ToDo: Add Method to generate encodings based on column names -> For Now use the Hierarchy based encoding always
-    # Add as new column to the dataframe
-    uiLog['application:id'] = uiLog.apply(lambda row: get_key(row, applicationDict, 'application'), axis=1)
-    uiLog['concept:name:id'] = uiLog.apply(lambda row: get_key(row, conceptNamesDict, 'concept:name'), axis=1)
-    uiLog['category:id'] = uiLog.apply(lambda row: get_key(row, categoriesDict, 'category'), axis=1)
-
-    # Encode all ids into a single value for univariate discovery by using tumples
-    numbersDF = uiLog[['concept:name:id', 'application:id', 'category:id']]
-
-    # Generate unique tuples for indexing the individual combinations of the rows mentioned
-    unique_df = numbersDF.drop_duplicates(subset=numbersDF.columns, keep='first')
-    tuples = [tuple(row[['concept:name:id', 'application:id', 'category:id']]) for i, row in unique_df.sort_values(by='application:id').iterrows()]
+    elif encoding == 2: # Co-Occurrance Encoding
+      column_dicts = {}
+      if coocurance_combined:
+          # Combined co-occurrence approach
+          combined_column = "combined_columns"
+          uiLog[combined_column] = uiLog[orderedColumnsList].astype(str).agg('||'.join, axis=1)
+          co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, combined_column)
+          matrix = spectral_ordering_cooccurrence(co_matrix)
+          combined_dict = createDict(list(matrix))
           
-    uiLog['tuple:id'] = uiLog.apply(lambda row: get_id(row, tuples, columns=['concept:name:id','application:id', 'category:id']), axis=1)
+          uiLog[f"{combined_column}:id"] = uiLog.apply(lambda row: get_key(row, combined_dict, combined_column), axis=1)
+      else:
+          # Individual column encoding approach
+          for column in orderedColumnsList:
+              # Apply co-occurrence matrix and spectral ordering for every column
+              co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, column)
+              matrix = spectral_ordering_cooccurrence(co_matrix)
+              column_dicts[column] = createDict(list(matrix))
 
-    return uiLog
+          # Encode each column into unique IDs
+          for column in orderedColumnsList:
+              encoded_column = f"{column}:id"
+              uiLog[encoded_column] = uiLog.apply(lambda row: get_key(row, column_dicts[column], column), axis=1)
+
+
+      # Generate tuples for univariate discovery
+      id_columns = [f"{col}:id" for col in orderedColumnsList] if not coocurance_combined else [f"{combined_column}:id"]
+      numbersDF = uiLog[id_columns]
+
+      # Generate unique tuples for indexing combinations
+      unique_df = numbersDF.drop_duplicates(subset=id_columns, keep='first')
+      tuples = [tuple(row[id_columns]) for _, row in unique_df.iterrows()]
+
+      # Add the tuple-based unique ID column
+      uiLog['tuple:id'] = uiLog.apply(lambda row: get_id(row, tuples, columns=id_columns), axis=1)
+
+      return uiLog
+    
+      # Old Code with hard coded columns
+
+      # Encode the application data by Cooccurance
+      # application_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "application")
+      # application_matrix = spectral_ordering_cooccurrence(application_co_matrix)
+      # applicationDict = createDict(list(application_matrix))
+      # # Encode the concept name (action) by Cooccurance
+      # concept_name_co_matrix = co_occurrence_matrix_n(uiLog, cooccurance_distance, "concept:name")
+      # concept_name_matrix = spectral_ordering_cooccurrence(concept_name_co_matrix)
+      # conceptNamesDict = createDict(list(concept_name_matrix))
+      # # Encode the categories with no special order as they are very few
+      # categoriesDict = createDict(set(uiLog.sort_values(by=['category'])['category'].unique()))
+
+      # uiLog['application:id'] = uiLog.apply(lambda row: get_key(row, applicationDict, 'application'), axis=1)
+      # uiLog['concept:name:id'] = uiLog.apply(lambda row: get_key(row, conceptNamesDict, 'concept:name'), axis=1)
+      # uiLog['category:id'] = uiLog.apply(lambda row: get_key(row, categoriesDict, 'category'), axis=1)
+
+      # # Encode all ids into a single value for univariate discovery by using tuples
+      # numbersDF = uiLog[['concept:name:id', 'application:id', 'category:id']]
+
+      # # Generate unique tuples for indexing the individual combinations of the rows mentioned
+      # unique_df = numbersDF.drop_duplicates(subset=numbersDF.columns, keep='first')
+      # tuples = [tuple(row[['concept:name:id', 'application:id', 'category:id']]) for i, row in unique_df.sort_values(by='application:id').iterrows()]
+            
+      # uiLog['tuple:id'] = uiLog.apply(lambda row: get_id(row, tuples, columns=['concept:name:id','application:id', 'category:id']), axis=1)
+    
+    elif encoding == 3: # Continuous Hot Encoding
+      # Create a single combined column to represent the unique combination
+      combined = uiLog[orderedColumnsList].astype(str).agg('|'.join, axis=1)
+      
+      # Factorize the combined values to get unique IDs
+      uiLog['tuple:id'] = pd.factorize(combined)[0]
+      return uiLog
+    
+    else:
+      raise ValueError("Encoding method not supported. Please select a valid encoding method.")
 
 # ---- Motif Discovery ----
 
