@@ -160,7 +160,7 @@ def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","a
 
 # ---- Motif Discovery ----
 
-def discover_motifs(uiLog: pd.DataFrame, window_size: int=25, normalize=True):
+def discover_motifs(uiLog: pd.DataFrame, window_size: int=25, normalize=True, self_exclude: bool=False):
     """
     Args:
       uiLog (DataFrame): Encoded uiLog containing the columns in text and integer format
@@ -176,6 +176,9 @@ def discover_motifs(uiLog: pd.DataFrame, window_size: int=25, normalize=True):
     starting_row = 0
     ending_row = len(uiLog)-1
     #Extract ids and rows
+    if self_exclude:
+       from stumpy import config
+       config.STUMPY_EXCL_ZONE_DENOM = 1  # The exclusion zone is i ± window_size
     event_series = uiLog.loc[starting_row:ending_row,'tuple:id'].values.astype(float)
     tm_matrix = stumpy.stump(T_A=event_series, m=window_size, normalize=normalize)
 
@@ -463,7 +466,9 @@ def insert_motifs_non_overlap(random_cases_list, uiLog, dfcases, occurances, cas
     """
     # Shuffle the cases occurrance times into the list
     random_cases_list = random_cases_list * occurances
-    random.shuffle(random_cases_list)
+    random_cases_list = random_cases_list[:occurances]
+    random.shuffle(random_cases_list) # Trimming the list as there can be > random_case_list but we only want occurances of entries
+    # print(f"Random Cases List Len: {len(random_cases_list)}; {random_cases_list}")
     
     # Generate random numbers and limit them to the valid range
     # Make them descending to order without random overlap
