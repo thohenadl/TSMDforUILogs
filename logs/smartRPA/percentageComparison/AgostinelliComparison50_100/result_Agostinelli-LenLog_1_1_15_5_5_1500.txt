@@ -1,0 +1,1 @@
+disableBrowserExtension clickLink uninstallBrowserExtension fullscreen closeTab clickTextField	1.0	slideshowBegin disableBrowserExtension clickLink uninstallBrowserExtension fullscreen closeTab clickTextField	2.0	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan

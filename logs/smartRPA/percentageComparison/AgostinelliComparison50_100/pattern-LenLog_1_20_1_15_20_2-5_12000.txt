@@ -1,0 +1,1 @@
+clickedNotification detachTab clickButton pinnedTab link uninstallBrowserExtension installBrowserExtension clickRadioButton newBookmark form_submit unmutedTab link clickRadioButton selectText disableBrowserExtension hotkey created moved cut hotkey 

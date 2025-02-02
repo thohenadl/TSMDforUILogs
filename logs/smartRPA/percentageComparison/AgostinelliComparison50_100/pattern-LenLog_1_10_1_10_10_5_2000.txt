@@ -1,0 +1,1 @@
+savePresentation activateWorkbook saveWorkbook newPresentationSlide doubleClickEmptyCell closePresentation pivotTableValueChangeSheet activateWorkbook newPresentationSlide deactivateWorkbook 

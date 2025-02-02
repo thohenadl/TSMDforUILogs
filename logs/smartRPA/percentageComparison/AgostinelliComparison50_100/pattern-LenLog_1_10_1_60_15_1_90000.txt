@@ -1,0 +1,1 @@
+newWorkbook doubleClickEmptyCell doubleClickPresentation slideshowBegin activateWindow deselectWorksheet printDocument saveWorkbook pivotTableValueChangeSheet rightClickEmptyCell openPresentation openWindow afterCalculate slideshowBegin openDocument 

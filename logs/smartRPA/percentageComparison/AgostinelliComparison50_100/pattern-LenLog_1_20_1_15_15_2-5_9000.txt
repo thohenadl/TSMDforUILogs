@@ -1,0 +1,1 @@
+dragElement installBrowserExtension unmutedTab dragElement installBrowserExtension unmutedTab clickLink clickRadioButton clickRadioButton clickRadioButton unmutedTab dragElement clickLink unmutedTab installBrowserExtension 

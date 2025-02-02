@@ -1,0 +1,1 @@
+activateWindow deselectWorksheet openPresentation SlideSelectionChanged editCellSheet doubleClickCellWithValue printWorkbook doubleClickWindow openDocument printWorkbook 

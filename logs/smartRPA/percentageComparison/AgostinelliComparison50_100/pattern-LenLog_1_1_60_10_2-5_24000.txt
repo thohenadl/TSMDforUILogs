@@ -1,0 +1,1 @@
+newTab navigateTo uninstallBrowserExtension selectText submit changeField form_submit clickCheckboxButton moveTab closedNotification 

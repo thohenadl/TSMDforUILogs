@@ -1,0 +1,1 @@
+deselectWorksheet rightClickWindow modelChangeWorkbook doubleClickPresentation printWorkbook newPresentationSlide slideshowBegin rightClickWindow openWindow afterCalculate 

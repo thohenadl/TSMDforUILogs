@@ -1,0 +1,1 @@
+uninstallBrowserExtension clickCheckboxButton closeTab reload selectText uninstallBrowserExtension attachTab navigateTo newTab reload closedNotification attachTab hotkey paste created moved deleted programClose programClose insertUSB modified Unmount created deleted copy 

@@ -1,0 +1,1 @@
+addWorksheet closePresentation newPresentationSlide closeWorkbook printDocument modelChangeWorkbook changeDocument newPresentationSlide openDocument doubleClickEmptyCell 

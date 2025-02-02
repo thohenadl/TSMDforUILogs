@@ -1,0 +1,1 @@
+doubleClickPresentation slideshowBegin rightClickWindow openDocument activateWindow saveWorkbook activateWorkbook editCellSheet modelChangeWorkbook newPresentationSlide SlideSelectionChanged XMLExportWorkbook deleteWorksheet openWorkbook rightClickEmptyCell 

@@ -1,0 +1,1 @@
+clickedNotification newBookmark enableBrowserExtension closedNotification clickedNotification closedNotification newWindow attachTab clickCheckboxButton closeTab newBookmark uninstallBrowserExtension created programClose Unmount moved deleted Mount created modified 

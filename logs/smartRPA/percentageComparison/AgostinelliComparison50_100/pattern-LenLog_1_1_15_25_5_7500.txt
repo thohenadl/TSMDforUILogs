@@ -1,0 +1,1 @@
+closeWindow XMLExportWorkbook beforeSaveWorkbook printSubmitted insertUSB insertUSB slideshowBegin attachTab rightClickPresentation newChartWorkbook closeWorkbook closeWorkbook selectFile printSubmitted printSubmitted doubleClickWindow doubleClick clickCheckboxButton startDownload disableBrowserExtension selectText audibleTab reload cancelDialog fullscreen 

@@ -1,0 +1,1 @@
+saveWorkbook doubleClickPresentation deactivateWindow newPresentation afterCalculate 

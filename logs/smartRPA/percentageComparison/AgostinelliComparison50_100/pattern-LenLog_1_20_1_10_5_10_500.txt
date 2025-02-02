@@ -1,0 +1,1 @@
+addinUninstalledWorkbook openDocument doubleClickWindow slideshowBegin activateWorkbook 

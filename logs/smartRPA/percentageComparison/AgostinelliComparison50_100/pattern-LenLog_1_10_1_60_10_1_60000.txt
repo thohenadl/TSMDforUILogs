@@ -1,0 +1,1 @@
+closePresentation addWorksheet closeWindow worksheetTableUpdated paste selectFile slideshowBegin attachTab rightClickPresentation cut 

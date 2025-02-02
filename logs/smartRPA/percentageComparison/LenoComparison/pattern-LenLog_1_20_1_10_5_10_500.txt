@@ -1,0 +1,1 @@
+addinUninstalledWorkbook_MicrosoftExcel_MicrosoftOffice -1 openDocument_MicrosoftWord_MicrosoftOffice -1 doubleClickWindow_MicrosoftWord_MicrosoftOffice -1 slideshowBegin_MicrosoftPowerPoint_MicrosoftOffice -1 activateWorkbook_MicrosoftExcel_MicrosoftOffice -1  -2 

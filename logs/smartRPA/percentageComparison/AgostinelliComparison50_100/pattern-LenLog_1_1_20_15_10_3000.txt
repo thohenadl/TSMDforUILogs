@@ -1,0 +1,1 @@
+doubleClick doubleClick fullscreen attachTab selectOptions clickButton clickRadioButton changeHistory newWindow dragElement modifyBookmark closeWindow selectOptions installBrowserExtension erasedDownload 

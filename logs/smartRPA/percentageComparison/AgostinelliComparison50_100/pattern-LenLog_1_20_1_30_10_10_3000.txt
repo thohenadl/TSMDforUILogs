@@ -1,0 +1,1 @@
+doubleClick uninstallBrowserExtension removeBookmark closeWindow moveBookmark moveBookmark removeBookmark detachTab startDownload uninstallBrowserExtension 

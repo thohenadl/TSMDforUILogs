@@ -1,0 +1,1 @@
+clickLink audibleTab contextMenu clickButton closeWindow cancelDialog detachTab typed modifyBookmark erasedDownload newWindow dragElement contextMenu urlHashChange dragElement hotkey printSubmitted modified openFolder openFile 

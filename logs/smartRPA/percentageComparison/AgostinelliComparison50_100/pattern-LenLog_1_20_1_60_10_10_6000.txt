@@ -1,0 +1,1 @@
+unmutedTab unmutedTab modifyBookmark selectText modifyBookmark removeBookmark erasedDownload selectText pinnedTab closeTab 

@@ -1,0 +1,1 @@
+typed openFolder openFolder openFile printSubmitted openFile programOpen paste cut paste openFile selectFile selectFile	3.0	getRange typed openFolder openFolder openFile printSubmitted openFile programOpen paste cut paste openFile selectFile selectFile	4.0	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan

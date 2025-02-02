@@ -1,0 +1,2 @@
+cut hotkey openFile copy insertUSB moved moved cut modified removeBookmark 
+cut hotkey openFile copy insertUSB moved moved cut modified attachTab 

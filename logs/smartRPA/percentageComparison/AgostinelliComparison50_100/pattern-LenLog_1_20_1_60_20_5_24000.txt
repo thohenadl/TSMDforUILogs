@@ -1,0 +1,1 @@
+clickedNotification deleted submit newWindow selectFolder closedNotification modified selectText newBookmark moveTab copy clickCheckboxButton disableBrowserExtension printSubmitted created uninstallBrowserExtension Mount submit closeTab programOpen 

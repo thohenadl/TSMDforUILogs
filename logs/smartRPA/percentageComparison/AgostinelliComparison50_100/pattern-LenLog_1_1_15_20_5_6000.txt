@@ -1,0 +1,1 @@
+dragElement clickLink clickLink clickRadioButton unmutedTab clickLink unmutedTab clickRadioButton dragElement dragElement clickCheckboxButton dragElement uninstallBrowserExtension uninstallBrowserExtension installBrowserExtension clickRadioButton unmutedTab uninstallBrowserExtension installBrowserExtension clickLink 

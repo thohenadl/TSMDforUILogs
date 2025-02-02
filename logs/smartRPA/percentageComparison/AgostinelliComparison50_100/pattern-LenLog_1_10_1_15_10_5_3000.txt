@@ -1,0 +1,1 @@
+openDocument beforeSaveWorkbook openPresentation modelChangeWorkbook doubleClickWindow worksheetTableUpdated worksheetTableUpdated newWorkbook savePresentation closeWindow 

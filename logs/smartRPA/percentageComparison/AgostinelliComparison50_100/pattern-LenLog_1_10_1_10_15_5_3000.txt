@@ -1,0 +1,1 @@
+paste copy programClose copy selectFolder Mount programClose Unmount paste Unmount created Mount programClose insertUSB insertUSB 

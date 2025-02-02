@@ -1,0 +1,1 @@
+newTab navigateTo programOpen moveTab printSubmitted moveTab uninstallBrowserExtension newBookmark changeField unpinnedTab newTab closeTab moved copy selectFolder closedNotification programOpen programClose modified closeTab 

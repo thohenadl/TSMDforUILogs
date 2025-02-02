@@ -1,0 +1,1 @@
+copy programClose paste copy printSubmitted printSubmitted selectFolder insertUSB Mount printSubmitted copy Mount copy programClose programOpen selectFolder Unmount Mount paste insertUSB rightClickEmptyCell closeWindow activateWindow saveWorkbook doubleClickPresentation 

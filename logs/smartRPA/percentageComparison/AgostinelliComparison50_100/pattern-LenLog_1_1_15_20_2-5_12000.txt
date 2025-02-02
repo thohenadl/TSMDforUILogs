@@ -1,0 +1,1 @@
+doubleClickPresentation activateWorkbook activateWorkbook printSubmitted hotkey created slideshowBegin attachTab rightClickPresentation deleteWorksheet newPresentation XMLExportWorkbook modified copy created doubleClickWindow doubleClick clickCheckboxButton reload selectText 

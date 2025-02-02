@@ -1,0 +1,1 @@
+uninstallBrowserExtension attachTab pinnedTab clickLink cancelDialog 

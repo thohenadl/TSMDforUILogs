@@ -1,0 +1,1 @@
+uninstallBrowserExtension selectFolder moveTab Unmount navigateTo printSubmitted newBookmark submit clickCheckboxButton clickCheckboxButton form_submit moveTab enableBrowserExtension programOpen selectFile created created copy newBookmark selectFolder selectFolder navigateTo cut selectFolder deleted 

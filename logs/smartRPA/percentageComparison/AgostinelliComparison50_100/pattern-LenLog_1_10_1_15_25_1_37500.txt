@@ -1,0 +1,1 @@
+openFolder modified hotkey openFile modified openFolder hotkey openFolder insertUSB moved openFolder moved openFile copy cut cut openFile insertUSB cut openFile openFile cut moved cut hotkey 

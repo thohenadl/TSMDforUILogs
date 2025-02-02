@@ -1,0 +1,1 @@
+unmutedTab moveTab pinnedTab pinnedTab selectOptions moveTab clickedNotification clickedNotification moveBookmark uninstallBrowserExtension 

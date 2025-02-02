@@ -1,0 +1,1 @@
+newTab copy sheetCalculate openFolder created openFile programOpen created selectFile selectFile created paste selectFile openFile printSubmitted selectFile cut paste openFile openFile cut paste created openFile detachTab closeTab installBrowserExtension closeTab closeTab	4.0	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan	nan

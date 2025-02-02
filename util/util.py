@@ -724,16 +724,42 @@ def extract_numbers(text):
   """
   # Remove square brackets using slicing
   text_without_brackets = text[1:-1]
-
   # Use ast.literal_eval for safe conversion (handles potential malformed strings)
   try:
     number_list = ast.literal_eval(text_without_brackets)
   except (ValueError, SyntaxError):
     # Handle potential exceptions during conversion (e.g., malformed string)
-    return []
+    raise ValueError('The string cannot be converted into a number list.')
 
   # Ensure all elements are integers
-  return [int(num) for num in number_list]  # List comprehension for conversion
+  if isinstance(number_list, int):
+    return [number_list]
+  else:
+    return [int(num) for num in number_list]  # List comprehension for conversion
+
+# Used in smartRPA-2-ActionLogger
+def get_indexes_for_identifiers(motif_spots, identifiers):
+    """
+    Retrieves index values for each unique identifier in a list of identifiers based on a list of motif spots.
+
+    Parameters:
+    motif_spots (list): List of integer index values from the dataframe.
+    identifiers (list): List of identifiers corresponding to the index positions.
+
+    Returns:
+    dict: A dictionary where keys are unique identifiers and values are lists of index values.
+    """
+    identifier_index_map = {}
+    #if len(motif_spots) != len(identifiers):
+    #    raise ValueError("motif_spots and identifiers must be of the same length.")
+
+    for idx, identifier in enumerate(identifiers):
+        if identifier not in identifier_index_map:
+            identifier_index_map[identifier] = []
+        identifier_index_map[identifier].append(motif_spots[idx])
+        #print(identifier_index_map)
+
+    return identifier_index_map
 
 def compare_sets(set1, set2, n):
   """

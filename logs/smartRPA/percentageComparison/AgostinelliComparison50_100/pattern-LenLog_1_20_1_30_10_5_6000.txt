@@ -1,0 +1,1 @@
+openFolder cut openFile copy openFolder openFolder hotkey openFolder openFile openFolder 

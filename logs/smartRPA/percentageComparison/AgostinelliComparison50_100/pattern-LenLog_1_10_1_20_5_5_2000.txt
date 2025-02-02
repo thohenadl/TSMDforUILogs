@@ -1,0 +1,1 @@
+rightClickPresentation activateWorkbook openPresentation slideshowBegin SlideSelectionChanged 

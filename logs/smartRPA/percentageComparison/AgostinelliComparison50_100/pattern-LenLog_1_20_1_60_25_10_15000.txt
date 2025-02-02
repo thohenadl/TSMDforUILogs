@@ -1,0 +1,1 @@
+audibleTab clickRadioButton audibleTab dragElement changeField attachTab typed urlHashChange typed newBookmark openFolder form_submit copy uninstallBrowserExtension disableBrowserExtension openFolder clickRadioButton copy paste openFolder clickTextField hotkey copy openFolder programOpen 

@@ -1,0 +1,1 @@
+fullscreen selectText submit clickLink closeWindow uninstallBrowserExtension doubleClick fullscreen selectText disableBrowserExtension urlHashChange closeTab link clickLink detachTab 

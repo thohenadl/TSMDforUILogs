@@ -1,0 +1,1 @@
+paste programClose paste Unmount paste programClose insertUSB programOpen copy Unmount copy printSubmitted programOpen insertUSB created copy selectFolder paste Mount insertUSB 

@@ -1,0 +1,1 @@
+clickCheckboxButton clickCheckboxButton installBrowserExtension clickCheckboxButton clickRadioButton clickLink unmutedTab clickCheckboxButton clickLink clickLink unmutedTab clickCheckboxButton installBrowserExtension clickCheckboxButton clickLink 

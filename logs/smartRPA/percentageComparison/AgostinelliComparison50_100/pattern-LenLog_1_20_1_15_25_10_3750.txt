@@ -1,0 +1,1 @@
+printSubmitted programOpen insertUSB programOpen printSubmitted Unmount insertUSB closeWorkbook insertUSB Mount paste programClose programClose copy Unmount Unmount selectFolder Unmount closeWindow copy printSubmitted changeDocument programClose modelChangeWorkbook openWorkbook 

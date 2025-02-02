@@ -1,0 +1,1 @@
+selectWorksheet savePresentation rightClickCellWithValue programClose programOpen 

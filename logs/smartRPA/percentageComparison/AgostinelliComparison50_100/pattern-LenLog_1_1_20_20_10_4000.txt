@@ -1,0 +1,1 @@
+newTab closeTab moveTab newBookmark newWindow changeField newBookmark unpinnedTab attachTab form_submit unpinnedTab selectText modified modified Mount modified Unmount created cut hotkey 

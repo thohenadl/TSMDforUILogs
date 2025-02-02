@@ -1,0 +1,1 @@
+dragElement newWindow cancelDialog newBookmark newBookmark clickLink moveBookmark uninstallBrowserExtension installBrowserExtension openFile disableBrowserExtension installBrowserExtension insertUSB cut attachTab clickedNotification paste copy deleted paste changeHistory insertUSB printSubmitted clickRadioButton openFolder 

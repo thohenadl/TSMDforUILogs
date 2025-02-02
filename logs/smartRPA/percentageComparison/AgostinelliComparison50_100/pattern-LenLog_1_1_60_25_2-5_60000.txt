@@ -1,0 +1,1 @@
+clickButton installBrowserExtension selectOptions attachTab cancelDialog clickRadioButton newWindow uninstallBrowserExtension fullscreen erasedDownload disableBrowserExtension form_submit newBookmark clickButton link printSubmitted modified moved copy hotkey copy Mount openFile printSubmitted openFolder 

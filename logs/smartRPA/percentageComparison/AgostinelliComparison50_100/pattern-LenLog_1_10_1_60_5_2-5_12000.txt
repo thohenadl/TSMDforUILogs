@@ -1,0 +1,1 @@
+clickCheckboxButton clickCheckboxButton disableBrowserExtension uninstallBrowserExtension changeField 

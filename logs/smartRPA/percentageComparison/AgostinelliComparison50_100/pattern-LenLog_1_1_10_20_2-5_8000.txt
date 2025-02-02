@@ -1,0 +1,1 @@
+doubleClickEmptyCell clickNextSlideshow openDocument deactivateWorkbook slideshowEnd newPresentation printDocument doubleClickEmptyCell printWorkbook activateWorkbook deactivateWindow deleteWorksheet pivotTableValueChangeSheet slideshowEnd deleteWorksheet moveBookmark audibleTab zoomTab clickRadioButton form_submit 

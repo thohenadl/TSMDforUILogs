@@ -1,0 +1,1 @@
+closeWindow urlHashChange submit newBookmark detachTab removeBookmark removeBookmark submit clickRadioButton audibleTab 

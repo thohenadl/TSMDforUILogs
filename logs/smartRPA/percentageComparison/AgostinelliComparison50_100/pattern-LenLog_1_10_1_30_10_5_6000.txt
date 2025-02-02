@@ -1,0 +1,1 @@
+hotkey openFile cut openFolder modified cut hotkey cut openFile openFile 

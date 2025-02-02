@@ -1,0 +1,1 @@
+cancelDialog submit startDownload pinnedTab fullscreen removeBookmark doubleClick startDownload clickLink installBrowserExtension 

@@ -1,0 +1,1 @@
+rightClickCellWithValue newWorkbook beforeSaveWorkbook moved programOpen copy slideshowBegin attachTab rightClickPresentation afterCalculate 

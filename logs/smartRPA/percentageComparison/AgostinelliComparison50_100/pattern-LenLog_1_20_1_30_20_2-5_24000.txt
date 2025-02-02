@@ -1,0 +1,1 @@
+moved dragElement navigateTo changeField moveTab closeWindow moveBookmark startDownload doubleClick link dragElement navigateTo uninstallBrowserExtension link cancelDialog Mount paste fullscreen openFile Mount 

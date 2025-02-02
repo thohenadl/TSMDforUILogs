@@ -1,0 +1,1 @@
+copy printSubmitted insertUSB Mount insertUSB paste paste Unmount programOpen programOpen selectFolder programClose insertUSB copy paste created programOpen selectFolder created programOpen 

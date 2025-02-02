@@ -1,0 +1,1 @@
+enableBrowserExtension doubleClick newWindow installBrowserExtension fullscreen 

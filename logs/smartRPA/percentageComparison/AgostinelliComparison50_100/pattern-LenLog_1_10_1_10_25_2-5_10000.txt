@@ -1,0 +1,1 @@
+form_submit navigateTo selectFile clickCheckboxButton unpinnedTab navigateTo uninstallBrowserExtension reload navigateTo changeField navigateTo navigateTo navigateTo created programClose selectFolder hotkey modified paste printSubmitted Unmount deleted moved programOpen moved 

@@ -1,0 +1,1 @@
+savePresentation followHiperlinkSheet activateWindow created Unmount insertUSB slideshowBegin attachTab rightClickPresentation openFolder deleteWorksheet XMLImportWorkbook programOpen followHiperlinkSheet Mount 

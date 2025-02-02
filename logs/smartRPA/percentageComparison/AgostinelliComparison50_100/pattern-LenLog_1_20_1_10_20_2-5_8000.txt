@@ -1,0 +1,1 @@
+selectOptions attachTab hotkey moveBookmark enableBrowserExtension dragElement audibleTab removeBookmark clickLink disableBrowserExtension uninstallBrowserExtension fullscreen navigateTo selectText form_submit cancelDialog modified created cut created 

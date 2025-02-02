@@ -1,0 +1,1 @@
+deactivateWindow closeWorkbook slideshowEnd newPresentation doubleClickWindow printDocument openWorkbook followHiperlinkSheet deselectWorksheet closeWorkbook 

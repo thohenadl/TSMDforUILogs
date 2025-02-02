@@ -1,0 +1,1 @@
+uninstallBrowserExtension navigateTo submit uninstallBrowserExtension attachTab Mount enableBrowserExtension clickCheckboxButton navigateTo unpinnedTab changeField selectText cut deleted selectFile created deleted printSubmitted clickCheckboxButton Mount 

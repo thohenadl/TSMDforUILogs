@@ -1,0 +1,1 @@
+insertUSB programClose created created printSubmitted insertUSB programOpen insertUSB programOpen programOpen Mount Unmount programOpen programOpen paste copy Unmount programOpen copy selectFolder getRange doubleClickWindow newDocument getRange closeWindow 

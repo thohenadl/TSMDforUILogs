@@ -1,0 +1,1 @@
+selectText newBookmark newWindow form_submit clickCheckboxButton unpinnedTab closeTab closeTab uninstallBrowserExtension enableBrowserExtension disableBrowserExtension submit moved created modified 

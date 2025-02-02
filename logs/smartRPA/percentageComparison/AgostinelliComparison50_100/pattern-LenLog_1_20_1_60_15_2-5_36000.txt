@@ -1,0 +1,1 @@
+erasedDownload zoomTab newTab selectOptions enableBrowserExtension fullscreen submit contextMenu contextMenu newBookmark uninstallBrowserExtension audibleTab contextMenu clickLink link 

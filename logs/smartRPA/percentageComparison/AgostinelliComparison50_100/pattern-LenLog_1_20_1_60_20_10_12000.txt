@@ -1,0 +1,1 @@
+printDocument deleteWorksheet openWorkbook pivotTableValueChangeSheet pinnedTab slideshowEnd savePresentation savePresentation rightClickWindow printDocument closePresentation doubleClickWindow XMLImportWorkbook clickLink newWorkbook addinUninstalledWorkbook selectText doubleClick clickRadioButton rightClickEmptyCell 
