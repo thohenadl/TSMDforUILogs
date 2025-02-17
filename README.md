@@ -25,14 +25,19 @@ The approach has eight sequential steps, of which the first two steps are manual
 7. The discovered routines are then gathered from the un-encoded UI log based on the indexes generted in step 6.
 8. Finally, [pm4py](https://pm4py.fit.fraunhofer.de/) is used to discover a directly follows graph for visualizing the discovered routine and the time series graphs are displayed as well
 
-## Single Log Discovery Notebook
+# Jupyter Notebooks Prepared
+
+There are 5 notebooks ready to be used.
+Three notebooks are important for the reproduction of the main experiment: Testing the recall, precision and accuracy of the time series approach overall.
+
+## SingleLogDiscovery.ipynb Notebook
 The single log discovery notebook is setup to process a single User Interaction log that can contain a routine.
 The **first section** imports all necessary functions, including the util.util and other native Python libraries.
 The **second section** configured the parameters, which have to be set to make the approach work.
 Please specifiy your file, the columns you aligned to the reference model, and the window size parameter particulary.
 The **third section** does execute the encoding, discovery, and visualisation. Do not change anything in there to have the approach working.
 
-## Validation Log Creation Notebook
+## ValidationLogCreation.ipynb Notebook
 As described in the evaluation section of the paper, the experiment relies on a set of arteficially created user interaction logs.
 You can create your own set and follow the process of the log creation by utilizing the "validationLogCreation" notebook.
 
@@ -52,7 +57,7 @@ shuffles = [0,10,20] # Percentage by which the inserted routine should be shuffl
 
 </details>
 
-## Experiment Notebook
+## Experiment.ipynb Notebook
 To execute the experiment and gather the insights as presented in the paper, just two steps are necessary:
 
 1. Put the correct path in the parameters
@@ -63,7 +68,7 @@ Once the file is converted into an XLSX file and the data is seperated into colu
 
 ## Experiment Results
 
-The experiment results from the paper are available in the file **Results - Experiment.xlsx**. 
+The experiment results from the paper are available in the file **2025 Overall Experiment Results.xlsx**. 
 In this file you will find two sheets. The first sheet contains the collected experiment results on which the evaluation section is based on. The second sheet contains the figures presented in the evaluation section of the paper. This file contains the all collected values from the experiment as outlined in the paper:
 
 ![Detailed Approach Visualisation](images/ResultTable.png)
@@ -77,3 +82,10 @@ The real-world process was designed based on experience in small and medium size
 The instruction given to the auther is stored in the **logs/Banking/** folder: [Real World Accounts Payable Instruction](logs/Banking/RealWorldProcessInstruction.pdf)
 The generated UI logs (SmartRPA/Tockler) are available in the same folder. 
 The logs are anonymized to not reflect any author data.
+
+## Additional notebooks: encodingAnalysis.ipynb & smartRPA-2-ActionLogger.ipynb
+
+These repositories were used for generic research and ideation.
+
+**encodingAnalysis.ipynb** was used to test different encoding methods and present the differences identified.
+**smartRPA-2-ActionLogger.ipynb** was used to transform the baseline data into the formats required for comparing our approach with Agostinelli et als. and Leno et als. approaches.

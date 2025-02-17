@@ -1,0 +1,2 @@
+# Jupyter Notebooks Info
+These notebooks were initially created in the main folder. If there are any issues with the file paths etc., try move the file to the main folder and remove any "../" before filepaths.
