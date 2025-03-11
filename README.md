@@ -9,7 +9,7 @@ This read-me file describes the three Jupyter notebooks that are relevant for th
 
 ## The Approach
 
-![Detailed Approach Visualisation](images/Approach.svg)
+![Detailed Approach Visualisation](images/Approach.png)
 
 The approach has eight sequential steps, of which the first two steps are manual pre-processing steps and the following four steps are automatically executed:
 
