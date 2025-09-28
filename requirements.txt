@@ -2,8 +2,6 @@ pm4py
 pandas
 stumpy
 numpy
-random
-scipy.sparse.linalg
-scipy.sparse
-ast
-os
+scipy
+matplotlib
+mpl-tools

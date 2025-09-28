@@ -29,15 +29,29 @@ The approach has eight sequential steps, of which the first two steps are manual
 
 There are 5 notebooks ready to be used.
 Three notebooks are important for the reproduction of the main experiment: Testing the recall, precision and accuracy of the time series approach overall.
+"01" Notebook: The main notebook relevant for the experiment in the paper
+"02" Notebook: Test of different encoding approaches, some used for validation, some only for trial and error
+"03" Notebook: Discovering routines in a single UI log
+"04" Notebook: Creation of the validation dataset for the experiment in "01"
+"05" Notebooks: Support code that helps transforming an smartRPA Log into an Action Logger Log
 
-## SingleLogDiscovery.ipynb Notebook
+## "01" Experiment.ipynb Notebook
+To execute the experiment and gather the insights as presented in the paper, just two steps are necessary:
+
+1. Put the correct path in the parameters
+2. Specify the list of window sizes that should be tested
+
+Afterwards, the experiment can be executed and will create a .csv file containing the parameters as defined in the publication.
+Once the file is converted into an XLSX file and the data is seperated into columns, the pivot function allows for creation of the graphs visualized in the paper.
+
+## "03" SingleLogDiscovery.ipynb Notebook
 The single log discovery notebook is setup to process a single User Interaction log that can contain a routine.
 The **first section** imports all necessary functions, including the util.util and other native Python libraries.
 The **second section** configured the parameters, which have to be set to make the approach work.
 Please specifiy your file, the columns you aligned to the reference model, and the window size parameter particulary.
 The **third section** does execute the encoding, discovery, and visualisation. Do not change anything in there to have the approach working.
 
-## ValidationLogCreation.ipynb Notebook
+## "04" ValidationLogCreation.ipynb Notebook
 As described in the evaluation section of the paper, the experiment relies on a set of arteficially created user interaction logs.
 You can create your own set and follow the process of the log creation by utilizing the "validationLogCreation" notebook.
 
@@ -57,14 +71,7 @@ shuffles = [0,10,20] # Percentage by which the inserted routine should be shuffl
 
 </details>
 
-## Experiment.ipynb Notebook
-To execute the experiment and gather the insights as presented in the paper, just two steps are necessary:
 
-1. Put the correct path in the parameters
-2. Specify the list of window sizes that should be tested
-
-Afterwards, the experiment can be executed and will create a .csv file containing the parameters as defined in the publication.
-Once the file is converted into an XLSX file and the data is seperated into columns, the pivot function allows for creation of the graphs visualized in the paper.
 
 ## Experiment Results
 
