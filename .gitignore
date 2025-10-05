@@ -9,6 +9,10 @@ logs/smartRPA/validation/*
 discoveryResults/*
 archive/*
 
+# Pickle files
+*.pkl
+*.pickle
+
 # --- Auto Generated Ignore ----
 # Byte-compiled / optimized / DLL files
 __pycache__/
