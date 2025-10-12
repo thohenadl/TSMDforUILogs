@@ -69,6 +69,28 @@ class mparray(np.ndarray):
     def right_I_(self):
         return self._right_I()
 
+    # ------------------ New Convenience Method ------------------
+    def smallest(self, n: int = 10):
+        """
+        Return the n smallest distance elements from the matrix profile.
+
+        Returns
+        -------
+        list of tuples
+            Each tuple is (distance, index) where:
+            - distance is from self.P_
+            - index is from self.I_
+        """
+        P = self.P_.flatten()
+        I = self.I_.flatten()
+
+        # Sort by distance ascending
+        order = np.argsort(P)
+        n = min(n, len(order))
+        top_n = order[:n]
+
+        return [(float(P[idx]), int(I[idx]), int()) for idx in top_n]
+
 
 # ---------------- Encoding ----------------
 def build_levels_table(paths, n):
@@ -245,6 +267,7 @@ def _ui_compute_diagonal(TA, TB, levels, weights, m, diags,
             s = 0.0
 
             # --- Compute hierarchy-aware distance for subsequences [i:i+m] and [j:j+m] ---
+            # --- Normalized by m (Window Size) ---
             for t in range(m):
                 a = levels[TA[i + t]]
                 b = levels[TB[j + t]]
