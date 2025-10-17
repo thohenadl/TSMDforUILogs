@@ -1,7 +1,8 @@
-import string
 import pandas as pd
 from collections import Counter,defaultdict
 import pandas as pd
+import itertools
+import matplotlib.pyplot as plt
 
 # Function to convert numeric code to Excel-style letters (A, B, ..., Z, AA, AB, ...)
 def num_to_letters(n, lowercase=False):
@@ -111,7 +112,6 @@ def re_pair(log: pd.DataFrame):
 
     return encoding_df, symbols, two_gram_df
 
-
 def re_pair_decode_symbol(symbol, encoding_df, printing=False, depth=0):
     """
     Recursively decodes a single encoded symbol using the encoding_df returned by re_pair().
@@ -145,22 +145,138 @@ def re_pair_decode_symbol(symbol, encoding_df, printing=False, depth=0):
         print(f"Final expansion: {decoded}\n")
     return decoded
 
-def reconstruct_encoding(encoded_list, df, hierarchy_list_columns):
-    # keep only first occurrence per symbol in the original df
-    first_occ = df.drop_duplicates(subset="symbol", keep="first")
+def re_pair_decode_all(encoding_df):
+    """
+    Decode all grammar rules exactly once (consistent with re_pair_decode_symbol).
+    Returns {new_symbol: list of base symbols}.
+    """
+    # Ensure uniqueness and order
+    encoding_df = encoding_df.drop_duplicates(subset="new_symbol", keep="last")
 
-    # make sequence frame
-    seq_df = pd.DataFrame({"symbol": encoded_list, "order": range(len(encoded_list))})
+    decode_map = {
+        row["new_symbol"]: tuple(row["pair"]) for _, row in encoding_df.iterrows()
+    }
 
-    # merge to reconstruct hierarchy attributes
-    merged = seq_df.merge(first_occ[["symbol"] + hierarchy_list_columns],
-                          on="symbol", how="left")
+    cache = {}
 
-    # restore order and select hierarchy columns
-    reconstructed = merged.sort_values("order")[hierarchy_list_columns].reset_index(drop=True)
+    def _decode(sym):
+        if sym in cache:
+            return cache[sym]
+        if sym not in decode_map:
+            cache[sym] = (sym,)
+            return cache[sym]
+        left, right = decode_map[sym]
+        result = _decode(left) + _decode(right)
+        cache[sym] = result
+        return result
 
-    return reconstructed
+    for sym in decode_map:
+        _decode(sym)
 
-# ---- Rule Density Curve ----
+    # Return lists for compatibility
+    return {k: list(v) for k, v in cache.items()}
 
+def generate_density_count(encoding_df, log, column_name="rule_density_count"):
+    log[column_name] = 0
+    decoded_rules = re_pair_decode_all(encoding_df) 
+    for sym, decoding in decoded_rules.items():
+        # Sliding window search for the sequence
+        seq_len = len(decoding)
+        symbols = log["symbol"].astype(str).tolist()
+        for i in range(len(symbols) - seq_len + 1):
+            if symbols[i:i + seq_len] == decoding:
+                log.loc[i:i + seq_len - 1, column_name] += 1
+    return log
 
+def plot_density_curve(log, column_name="rule_density_count"):
+    plt.figure(figsize=(10, 4)) 
+    plt.plot(log.index, log[column_name], linewidth=2) 
+    plt.title("Rule Density Across Events in Log") 
+    plt.xlabel("Index (Event position in log)") 
+    plt.ylabel("Rule Density Count") 
+    plt.grid(True, alpha=0.3) 
+    plt.tight_layout() 
+    plt.show()
+
+def find_rules_with_symbol(encoding_df, symbol, recursive=False):
+    """
+    Find all grammar rules in encoding_df that include a given symbol.
+
+    Parameters
+    ----------
+    encoding_df : pd.DataFrame
+        Must contain columns ['pair', 'new_symbol'] where 'pair' is a tuple (left, right).
+    symbol : str
+        The symbol to search for (e.g. 'A', 'a', 'f', etc.).
+    recursive : bool, default False
+        If True, also returns all rules that depend (directly or indirectly) on the symbol.
+
+    Returns
+    -------
+    related_rules : pd.DataFrame
+        Subset of encoding_df containing all matching rules.
+           
+              
+    Example Usage
+    -------
+    find_rules_with_symbol(encoding_df, "a", recursive=True)   
+    """
+
+    # direct matches: any rule whose left or right contains the symbol
+    direct = encoding_df[
+        encoding_df["pair"].apply(lambda p: symbol in p)
+    ].copy()
+
+    if not recursive:
+        return direct
+
+    # recursive search: find all rules whose pairs contain the symbol, then all rules that
+    # contain those new_symbols, and so on
+    seen = set()
+    to_check = {symbol}
+
+    while to_check:
+        current = to_check.pop()
+        new_matches = encoding_df[
+            encoding_df["pair"].apply(lambda p: current in p)
+        ]
+        for _, row in new_matches.iterrows():
+            new_sym = row["new_symbol"]
+            if new_sym not in seen:
+                seen.add(new_sym)
+                to_check.add(new_sym)
+
+    # all rules whose new_symbol is in seen
+    recursive_rules = encoding_df[
+        encoding_df["new_symbol"].isin(seen)
+    ].copy()
+
+    return recursive_rules
+
+def find_max_density_groups(log, column="rule_density_count"):
+    """
+    Find indices of maximum rule density and group consecutive ones.
+
+    Returns
+    -------
+    max_density : int or float
+        The maximum rule density value.
+    groups : list of lists
+        Each inner list contains consecutive indices with the maximum density.
+    """
+
+    # Step 1: find maximum density value
+    max_density = log[column].max()
+
+    # Step 2: collect indices with that value
+    max_indices = log.index[log[column] == max_density].tolist()
+
+    # Step 3: group consecutive indices into connected ranges
+    groups = []
+    for _, group in itertools.groupby(
+        enumerate(max_indices), lambda x: x[0] - x[1]
+    ):
+        connected = [g[1] for g in group]
+        groups.append(connected)
+
+    return max_density, groups
