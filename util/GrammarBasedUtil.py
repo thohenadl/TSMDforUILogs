@@ -188,9 +188,11 @@ def generate_density_count(encoding_df, log, column_name="rule_density_count"):
                 log.loc[i:i + seq_len - 1, column_name] += 1
     return log
 
-def plot_density_curve(log, column_name="rule_density_count"):
+def plot_density_curve(log, range_low=0, range_high=-1, column_name="rule_density_count"):
     plt.figure(figsize=(10, 4)) 
-    plt.plot(log.index, log[column_name], linewidth=2) 
+    if range_high < 0:
+        range_high = len(log[column_name])
+    plt.plot(log.index[range_low:range_high], log.iloc[range_low:range_high][column_name], linewidth=2) 
     plt.title("Rule Density Across Events in Log") 
     plt.xlabel("Index (Event position in log)") 
     plt.ylabel("Rule Density Count") 
@@ -253,30 +255,126 @@ def find_rules_with_symbol(encoding_df, symbol, recursive=False):
 
     return recursive_rules
 
-def find_max_density_groups(log, column="rule_density_count"):
+import itertools
+
+def find_max_density_groups(
+    log, 
+    column="rule_density_count", 
+    relative_threshold=None, 
+    absolute_threshold=None
+):
     """
-    Find indices of maximum rule density and group consecutive ones.
+    Find indices of maximum (or near-maximum) rule density and group consecutive ones.
+
+    Parameters
+    ----------
+    log : pd.DataFrame
+        DataFrame containing the rule density column.
+    column : str, default="rule_density_count"
+        Name of the column with rule density values.
+    relative_threshold : float, optional
+        Include all values >= (relative_threshold * max_density).
+        For example, 0.9 means include all densities >= 90% of the max.
+    absolute_threshold : float or int, optional
+        Include all values >= (max_density - absolute_threshold).
+        For example, 1 means include all densities within 1 count of the max.
 
     Returns
     -------
-    max_density : int or float
-        The maximum rule density value.
+    max_density : float
+        The maximum density value.
     groups : list of lists
-        Each inner list contains consecutive indices with the maximum density.
+        Each inner list contains consecutive indices meeting the threshold.
     """
 
-    # Step 1: find maximum density value
+    # Step 1: find maximum density
     max_density = log[column].max()
 
-    # Step 2: collect indices with that value
-    max_indices = log.index[log[column] == max_density].tolist()
+    # Step 2: determine cutoff based on threshold
+    if relative_threshold is not None:
+        cutoff = max_density * relative_threshold
+    elif absolute_threshold is not None:
+        cutoff = max_density - absolute_threshold
+    else:
+        cutoff = max_density
 
-    # Step 3: group consecutive indices into connected ranges
+    # Step 3: get indices meeting the cutoff
+    valid_indices = log.index[log[column] >= cutoff].tolist()
+
+    # Step 4: group consecutive indices
     groups = []
     for _, group in itertools.groupby(
-        enumerate(max_indices), lambda x: x[0] - x[1]
+        enumerate(valid_indices), lambda x: x[0] - x[1]
     ):
         connected = [g[1] for g in group]
         groups.append(connected)
 
     return max_density, groups
+
+def expand_density_regions(
+    log,
+    column="rule_density_count",
+    groups=None,
+    threshold_ratio=0.5,
+    min_span=3
+):
+    """
+    Expand motif seed groups (max-density regions) into full motif boundaries
+    based on a relative density threshold.
+
+    Parameters
+    ----------
+    log : pd.DataFrame
+        DataFrame containing the rule density column.
+    column : str, default="rule_density_count"
+        Name of the column holding rule density values.
+    groups : list of list[int], optional
+        Output of find_max_density_groups(); list of index lists marking peak groups.
+    threshold_ratio : float, default=0.5
+        Fraction of local peak value used to determine expansion limit (e.g., 0.4–0.6).
+    min_span : int, default=3
+        Minimal number of indices required to keep a region (shorter ones are ignored).
+
+    Returns
+    -------
+    expanded_regions : list of tuple(int, int)
+        List of (start_index, end_index) tuples marking full motif spans.
+    """
+
+    if groups is None or len(groups) == 0:
+        raise ValueError("No seed groups provided — run find_max_density_groups first.")
+
+    values = log[column].values
+    n = len(values)
+    expanded_regions = []
+
+    for group in groups:
+        # Determine initial seed range and local peak
+        start, end = group[0], group[-1]
+        local_peak = values[start:end + 1].max()
+        cutoff = local_peak * threshold_ratio
+
+        # Expand left
+        left = start
+        while left > 0 and values[left - 1] >= cutoff:
+            left -= 1
+
+        # Expand right
+        right = end
+        while right < n - 1 and values[right + 1] >= cutoff:
+            right += 1
+
+        # Keep only sufficiently long regions
+        if right - left + 1 >= min_span:
+            expanded_regions.append((left, right))
+
+    # Merge overlapping regions
+    merged = []
+    for s, e in sorted(expanded_regions):
+        if not merged or s > merged[-1][1]:
+            merged.append([s, e])
+        else:
+            merged[-1][1] = max(merged[-1][1], e)
+
+    return [(s, e) for s, e in merged]
+
