@@ -1,8 +1,14 @@
 import pandas as pd
 from collections import Counter,defaultdict
 import pandas as pd
+import numpy as np
 import itertools
 import matplotlib.pyplot as plt
+
+
+##########################
+### Grammer Viz Code #####
+##########################
 
 # Function to convert numeric code to Excel-style letters (A, B, ..., Z, AA, AB, ...)
 def num_to_letters(n, lowercase=False):
@@ -176,6 +182,9 @@ def re_pair_decode_all(encoding_df):
     # Return lists for compatibility
     return {k: list(v) for k, v in cache.items()}
 
+
+# ---- Evaluation Methods ----
+
 def generate_density_count(encoding_df, log, column_name="rule_density_count"):
     log[column_name] = 0
     decoded_rules = re_pair_decode_all(encoding_df) 
@@ -261,7 +270,8 @@ def find_max_density_groups(
     log, 
     column="rule_density_count", 
     relative_threshold=None, 
-    absolute_threshold=None
+    absolute_threshold=None,
+    merge_gap=None,
 ):
     """
     Find indices of maximum (or near-maximum) rule density and group consecutive ones.
@@ -309,72 +319,191 @@ def find_max_density_groups(
         connected = [g[1] for g in group]
         groups.append(connected)
 
+    if merge_gap is not None:
+        # Merge groups if they are close (≤ merge_gap apart)
+        merged = []
+        for g in groups:
+            if not merged:
+                merged.append(g)
+            else:
+                if g[0] - merged[-1][-1] <= merge_gap:
+                    merged[-1].extend(g)
+                else:
+                    merged.append(g)
+
+        return max_density, merged
+    
     return max_density, groups
 
-def expand_density_regions(
-    log,
-    column="rule_density_count",
-    groups=None,
-    threshold_ratio=0.5,
-    min_span=3
-):
+
+def find_overlaps(max_groups: list, ground_truth: pd.DataFrame):
     """
-    Expand motif seed groups (max-density regions) into full motif boundaries
-    based on a relative density threshold.
+    Input:
+        max_groups: List of list of events that are close together in rule count
+        ground_truth: Dataframe that contains the case_id, start and end index and length of all existing motifs
+    
+    Returns:
+        List of insert ranges and density ranges
+    """
+    overlaps = []
+    for _, row in ground_truth.iterrows():
+        s1, e1 = row["start_index"], row["end_index"]
+        for g in max_groups:
+            s2, e2 = g[0], g[-1]
+            if not (e1 < s2 or e2 < s1):  # overlap condition
+                overlaps.append({"insert_range": (s1, e1), "density_range": (s2, e2)})
+    
+    return overlaps
+
+def match_motifs_to_gt(max_groups, ground_truth):
+    if not {"start_index", "end_index"}.issubset(ground_truth.columns):
+        raise ValueError("ground_truth must have 'start_index' and 'end_index' columns")
+
+    pairs = []
+    ground_truth["discovery_count"] = 0
+
+    for mi, g in enumerate(max_groups):
+        ms, me = g[0], g[-1]
+        for gi in range(len(ground_truth)):
+            gs = ground_truth.iloc[gi]["start_index"]
+            ge = ground_truth.iloc[gi]["end_index"]
+            inter = max(0, min(me, ge) - max(ms, gs) + 1)
+            if inter > 0:
+                pairs.append((mi, gi, inter))
+                ground_truth.at[gi, "discovery_count"] += 1  # increment count
+
+    # Greedy one-to-one assignment (largest overlap first)
+    pairs.sort(key=lambda x: x[2], reverse=True)
+    matched_motifs, matched_gt = set(), set()
+    matched = []
+    for mi, gi, _ in pairs:
+        if mi not in matched_motifs and gi not in matched_gt:
+            matched_motifs.add(mi)
+            matched_gt.add(gi)
+            matched.append((mi, gi))
+
+    tp = len(matched)
+    fp = len(max_groups) - tp
+    fn = len(ground_truth) - tp
+    return matched, tp, fp, fn, ground_truth
+
+
+def motif_overlap_metrics(max_groups, ground_truth):
+    """
+    Compute motif-to-ground-truth overlap statistics.
 
     Parameters
     ----------
-    log : pd.DataFrame
-        DataFrame containing the rule density column.
-    column : str, default="rule_density_count"
-        Name of the column holding rule density values.
-    groups : list of list[int], optional
-        Output of find_max_density_groups(); list of index lists marking peak groups.
-    threshold_ratio : float, default=0.5
-        Fraction of local peak value used to determine expansion limit (e.g., 0.4–0.6).
-    min_span : int, default=3
-        Minimal number of indices required to keep a region (shorter ones are ignored).
+    max_groups : list of lists
+        Each element is a list [start_index, ..., end_index] for an identified motif group.
+    ground_truth : pd.DataFrame
+        Must contain columns ['start_index', 'end_index'].
 
     Returns
     -------
-    expanded_regions : list of tuple(int, int)
-        List of (start_index, end_index) tuples marking full motif spans.
+    dict with:
+        - intersection_ratio / intersection_abs
+        - undercount_ratio / undercount_abs
+        - over_detection_ratio / over_detection_abs
     """
 
-    if groups is None or len(groups) == 0:
-        raise ValueError("No seed groups provided — run find_max_density_groups first.")
+    intersection_ratios, intersection_abs = [], []
+    undercount_ratios, undercount_abs = [], []
+    overdet_ratios, overdet_abs = [], []
 
-    values = log[column].values
-    n = len(values)
-    expanded_regions = []
+    # --- Intersection (motif overlap with ground truth) ---
+    for g in max_groups:
+        s2, e2 = g[0], g[-1]
+        g_len = e2 - s2 + 1
+        overlap_len = 0
+        for _, row in ground_truth.iterrows():
+            s1, e1 = row["start_index"], row["end_index"]
+            inter = max(0, min(e1, e2) - max(s1, s2) + 1)
+            overlap_len += inter
+        intersection_abs.append(overlap_len)
+        intersection_ratios.append(overlap_len / g_len if g_len > 0 else 0)
 
-    for group in groups:
-        # Determine initial seed range and local peak
-        start, end = group[0], group[-1]
-        local_peak = values[start:end + 1].max()
-        cutoff = local_peak * threshold_ratio
+        # Over-detection: motif part outside GT
+        over_len = g_len - overlap_len
+        overdet_abs.append(over_len)
+        overdet_ratios.append(over_len / g_len if g_len > 0 else 0)
 
-        # Expand left
-        left = start
-        while left > 0 and values[left - 1] >= cutoff:
-            left -= 1
+    # --- Undercount (ground truth not covered by motifs) ---
+    for _, row in ground_truth.iterrows():
+        s1, e1 = row["start_index"], row["end_index"]
+        gt_len = e1 - s1 + 1
+        overlap_len = 0
+        for g in max_groups:
+            s2, e2 = g[0], g[-1]
+            inter = max(0, min(e1, e2) - max(s1, s2) + 1)
+            overlap_len += inter
+        undercount_abs.append(max(0, gt_len - overlap_len))
+        undercount_ratios.append(1 - (overlap_len / gt_len if gt_len > 0 else 0))
 
-        # Expand right
-        right = end
-        while right < n - 1 and values[right + 1] >= cutoff:
-            right += 1
+    # --- Aggregate ---
+    return {
+        "intersection_ratio": np.mean(intersection_ratios) if intersection_ratios else 0,
+        "intersection_abs": np.mean(intersection_abs) if intersection_abs else 0,
+        "undercount_ratio": np.mean(undercount_ratios) if undercount_ratios else 0,
+        "undercount_abs": np.mean(undercount_abs) if undercount_abs else 0,
+        "over_detection_ratio": np.mean(overdet_ratios) if overdet_ratios else 0,
+        "over_detection_abs": np.mean(overdet_abs) if overdet_abs else 0,
+    }
 
-        # Keep only sufficiently long regions
-        if right - left + 1 >= min_span:
-            expanded_regions.append((left, right))
 
-    # Merge overlapping regions
-    merged = []
-    for s, e in sorted(expanded_regions):
-        if not merged or s > merged[-1][1]:
-            merged.append([s, e])
-        else:
-            merged[-1][1] = max(merged[-1][1], e)
+##########################
+###### Valmod Code #######
+##########################
 
-    return [(s, e) for s, e in merged]
+def remove_redundant_groups(max_groups, log, column="symbol"):
+    col = log[column].to_numpy()
+    symbol_groups = [[col[i] for i in group] for group in max_groups]
 
+    # group indexes and count
+    group_dict = defaultdict(list)
+    for idx, g in enumerate(symbol_groups):
+        group_dict[tuple(g)].append(idx)
+
+    # build dataframe
+    rows = []
+    for seq, idxs in group_dict.items():
+        rows.append({
+            "sequence": list(seq),
+            "occurrence": len(idxs),
+            "first_occurrence": max_groups[0]
+        })
+
+    df = pd.DataFrame(rows)
+    return df
+
+def test_multi_threshold_scores(ground_truth, log):
+    thresholds = np.arange(0.05, 1.01, 0.05)
+    precisions, recalls, f1_scores = [], [], []
+
+    for t in thresholds:
+        max_rule_density_count, max_groups = find_max_density_groups(log, relative_threshold=t)
+        matched, tp, fp, fn, gt1 = match_motifs_to_gt(max_groups, ground_truth)
+
+        precision = tp / (tp + fp) if (tp + fp) else 0
+        recall = tp / (tp + fn) if (tp + fn) else 0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+
+        precisions.append(precision)
+        recalls.append(recall)
+        f1_scores.append(f1)
+
+    # ---- Plot curves ----
+    plt.figure(figsize=(8, 5))
+    plt.plot(thresholds, precisions, marker="o", label="Precision")
+    plt.plot(thresholds, recalls, marker="s", label="Recall")
+    plt.plot(thresholds, f1_scores, marker="^", label="F1-score")
+
+    plt.axhline(y=1.0, color="red", linestyle="--", linewidth=1)
+
+    plt.title("Precision / Recall / F1 vs. Threshold")
+    plt.xlabel("Relative Threshold")
+    plt.ylabel("Score")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
