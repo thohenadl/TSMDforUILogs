@@ -10,6 +10,7 @@ logs/smartRPA/p-50_100_experiment
 logs/smartRPA/validation/*
 discoveryResults/*
 archive/*
+logs/smartRPA/202511-update/*
 
 # Pickle files
 *.pkl

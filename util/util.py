@@ -7,6 +7,13 @@ import numpy as np
 from scipy.sparse.linalg import eigsh
 from scipy.sparse import csr_matrix
 
+from itertools import chain
+import util.valmod_uihe as valmod_util
+import util.GrammarBasedUtil as grammar_util
+
+from collections import Counter
+
+from stumpy import config
 import stumpy
 import ast
 
@@ -274,34 +281,48 @@ def select_consecutive_rows(df, n):
     start_idx = np.random.randint(0, len(df) - n + 1)
     return df.iloc[start_idx:start_idx + n]
 
-def get_rand_uiLog(df, n_max:int=10, actions:int=9600):
-    """Selects random n consequitive rows from a DataFrame.
-
-    Args:
-      df (pd.DataFrame): The DataFrame to select from.
-      n_max (int): The upper limit for the random number function
-      actions (int): Number of actions to be added into the UI log
-          Default 9600 (8 hours * 60 minutes * 20 events/minute)
-
-    Returns:
-      pd.DataFrame: A DataFrame containing the selected rows.
+def biased_length(n_max, p=0.5):
+    # geometric-like draw: repeat until within range
+    while True:
+        x = np.random.geometric(p)
+        if x <= n_max:
+            return x
+        
+def get_rand_uiLog(dfAll: pd.DataFrame, n_max: int, action_count: int, printing=False) -> pd.DataFrame:
     """
-    # Use random sample and size parameter for efficiency
-    if n_max == 1:
-      # For faster calculation
-      return get_completely_random_uiLog(df,actions)
-    
-    ui_log = pd.DataFrame()
-    while(len(ui_log) < actions):
-        if (len(ui_log) % 1000) == 0:
-          print(f"Current generated UiLog length: {len(ui_log)}")
-        # Slow way, optimized by getting multiple random indecies at once
-        index = random.randint(0,len(df)-n_max)
-        sequence = df.iloc[index:index+n_max]
-        concat_Series = [ui_log,sequence]
-        ui_log = pd.concat(concat_Series)
+    Efficient and scalable generator of noise UI logs.
+    Avoids O(n^2) concatenation. Builds blocks then concatenates once.
+    """
+    blocks = []
+    total = 0
+    seq_len_counter = Counter()
 
-    return ui_log
+    max_len = len(dfAll)
+
+    while total < action_count:
+        if printing and total % 100 == 0:
+            print(f"Current generated UiLog length: {total}")
+
+        seq_len = biased_length(n_max, p=0.35)
+        if seq_len >= max_len:
+            seq_len = max_len - 1
+
+        start_idx = np.random.randint(0, max_len - seq_len)
+        seq = dfAll.iloc[start_idx : start_idx + seq_len]
+
+        blocks.append(seq)
+        total += seq_len
+        seq_len_counter[seq_len] += 1
+
+    # print summary if printing: 
+    if printing:
+        print("Sequence length usage:") 
+        for length, count in sorted(seq_len_counter.items()): 
+            print(f"{length}: {count}")
+
+    result = pd.concat(blocks, ignore_index=True)
+    print(f"Generated random UiLog length: {len(result)}")
+    return result.iloc[:int(action_count)]
 
 def get_completely_random_uiLog(df, actions=9600):
     """
@@ -354,7 +375,10 @@ def get_random_values(df: pd.DataFrame, column_name: str, m: int, min_len:int=1)
     # Filter rows based on minimum occurrence
     filtered_df = df[df[column_name].isin(value_counts[value_counts >= min_len].index)] 
     random_values = filtered_df[column_name].sample(m)
-    return random_values.tolist()
+    random_cases = pd.DataFrame(columns=[column_name,"count"])
+    random_cases[column_name] = random_values
+    random_cases["count"] = random_cases[column_name].map(value_counts)
+    return random_cases
 
 def reorder_dataframe(df, reorder_percentage=10, inplace=False):
     """
@@ -481,7 +505,7 @@ def insert_motifs_non_overlap(random_cases_list, uiLog, dfcases, occurances, cas
         
         if reduced:
             insert_df = remove_n_percent_rows(insert_df,reduced_by)
-        if shuffled:
+        if shuffled and shuffled_by > 0:
             insert_df = reorder_dataframe(insert_df,shuffled_by)
         
         uiLog = pd.concat([uiLog.iloc[:index_list[i]], insert_df, uiLog.iloc[index_list[i]:]], ignore_index=True)
@@ -789,3 +813,412 @@ def compare_sets(set1, set2, n):
         break  # Avoid duplicates if multiple values in set2 are within range
 
   return identified_values, motif_values, set_matches
+
+
+def read_data_for_processing(isSmartRPA2024: bool,
+                             isSmartRPA2025: bool = False,
+                             isRealWorldTest: bool = False,
+                             isActionLogger: bool = False,
+                             leno_plus: bool = False,
+                             isHCI: bool = False,
+                             log_name_smartRPA: str = "LenLog_1_1_10_25_5_5000.csv",
+                             encoding_method: int = 1):
+  # Create Standard Based data for both logs, so that all down stream measures look the same
+
+  # 1. Dataframe mit Start Index, Length, End_Index
+  # 2. Context Parameters
+  #   2.2. All levels initiated
+  #   2.1. Flatten hierarchy_columns
+  # 3. Read Files
+
+  # ground_truth => Dataframe with columns: caseid, start_index, length, end_index
+  # log => Dataframe with all events symbolized according to hierarchy_columns
+  # hierarchy_columns => List of Lists with all hierarchy levels used for symbolization
+  # hierarchy_list => Flattened list of hierarchy_columns
+
+  if isSmartRPA2025 or isSmartRPA2024 or isRealWorldTest:
+    # Note: Read the alignment hints above
+    systems = ["category"]
+    applications = ["application"]
+    uiGroup1 = ["workbook","browser_url","title"]
+    uiGroup2 = ["current_worksheet"] 
+    uiGroup3 = ["cell_range","cell_range_number"]
+    uiElement = ["mouse_coord","tag_category","xpath","event_src_path","event_dest_path","tag_name","tag_title","tag_href",
+                "tag_innerText","tab_pinned","tab_audible","tab_muted","window_ingognito","tab_moved_from_index","tab_moved_to_index","id"]
+    actions = ["concept:name","eventQual"]
+    # ---- Add all hierarchy levels into a list ----
+    hierarchy_list_smartrpa = [systems, applications, uiGroup1, uiGroup2, uiGroup3, uiElement, actions]
+    hierarchy_columns_smartrpa = list(chain.from_iterable([h for h in hierarchy_list_smartrpa if h]))
+    
+    hierarchy_list = hierarchy_list_smartrpa
+    hierarchy_columns = hierarchy_columns_smartrpa
+    hierarchy_columns_app_switch = list(chain.from_iterable([systems,applications]))
+
+    sep_smartrpa = ","
+    if isSmartRPA2024:
+      # ---- Define folder path and relevant files ----
+      folder_path_smartRPA = "../logs/smartRPA/percentageComparison/"
+      percentagData_filename = "validationDataPercentage.csv"
+      # ---- Getting the relevant files from the folder and sorting them into different lists for processing ----
+      percentageLogs = []
+
+      for file_in_folder in os.listdir(folder_path_smartRPA):
+          if file_in_folder.startswith("LenLog"):
+              percentageLogs.append(file_in_folder)
+
+      # Check if data created for percentage based comparison is available
+      try:
+          percentageValData = pd.read_csv(folder_path_smartRPA + percentagData_filename)
+          percentageValAvailable = True
+      except FileNotFoundError as e:
+          print(f"Could not read {percentagData_filename} from the folder.\n{e}")
+          percentageValAvailable = False
+      
+      # ---- Read the relevant log file ----
+      file = pd.read_csv(folder_path_smartRPA + log_name_smartRPA, sep=sep_smartrpa)
+      print(f"Processing file: {log_name_smartRPA} with {len(file)} events.")
+      comparisonVariables = percentageValData.loc[percentageValData['uiLogName'] == log_name_smartRPA]
+      insertSpots = comparisonVariables["motifSpots"]
+      parsed_spots = insertSpots.apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+      insert_spots_flat = [int(i) for sublist in parsed_spots for i in sublist]
+      insert_spots_set = set(insert_spots_flat)
+      print(f"{len(insert_spots_set)} insertion spots.")
+      columns = ["caseid", "start_index", "length", "end_index"]
+      ground_truth = pd.DataFrame(columns=columns)
+      i = 0
+      for insert_spot in insert_spots_set:
+          ground_truth.loc[len(ground_truth)] = [i, insert_spot, comparisonVariables["motifLength"].iloc[0], insert_spot + comparisonVariables["motifLength"].iloc[0]]
+          i += 1
+          
+    elif isSmartRPA2025:
+      # ---- Define folder path and relevant files ----
+      folder_path_smartRPA2025 = "../logs/smartRPA/202511-update/"
+      grundTruthOverallData = "validationLogInformation.csv"
+      # ---- Getting the relevant files from the folder and sorting them into different lists for processing ----
+      percentageLogs = []
+      sep_smartrpa = ','
+      file = pd.read_csv(folder_path_smartRPA2025 + log_name_smartRPA, sep=sep_smartrpa)
+      print(f"Processing file: {log_name_smartRPA} with {len(file)} events.")
+
+      groundTruthDataDF = pd.read_csv(folder_path_smartRPA2025 + grundTruthOverallData, sep=sep_smartrpa)
+
+      groundTruthDataForLog = groundTruthDataDF[groundTruthDataDF['uiLogName'] == log_name_smartRPA]
+      ground_truth = pd.DataFrame(columns=["caseid", "start_index", "length", "end_index"])
+      motif = 0
+      while motif < groundTruthDataForLog["noOfMotifs"].values[0]:
+          # Get the regular parameters for the motif
+          caseid = groundTruthDataForLog[f'motif{motif}-caseID'].values[0]
+          motif_length = groundTruthDataForLog[f'motif{motif}-length'].values[0]
+          occurances = groundTruthDataForLog[f'motif{motif}-occurances'].values[0]
+          shuffle = groundTruthDataForLog[f'motif{motif}-shuffle'].values[0]
+          # Get the start indexes for the motif
+          start_index = groundTruthDataForLog[f'motif{motif}-startIndexes']
+          parsed_spots = start_index.apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+          insert_spots_flat = [int(i) for sublist in parsed_spots for i in sublist]
+          insert_spots_set = set(insert_spots_flat)
+          # Iterate over the start indexes and create new rows in the ground truth dataframe
+          for element in insert_spots_set:
+              new_row = {"caseid": caseid,
+                        "start_index": element,
+                        "length": motif_length,
+                        "end_index": int(element + motif_length - 1)}
+              ground_truth = pd.concat([ground_truth, pd.DataFrame([new_row])], ignore_index=True)
+          motif += 1
+
+    elif isRealWorldTest:
+        folder_path_realworld = "../logs/Banking/"
+        realworld_log_name = "RunningExampleSmartRPA_Anonymized.csv"
+        file = pd.read_csv(folder_path_realworld + realworld_log_name, sep=";")
+
+        print(f"Processing file: {realworld_log_name} with {len(file)} events.")
+
+        ground_truth = pd.DataFrame(columns=["caseid", "start_index", "length", "end_index"])
+        # Manually define ground truth based on known inserted motifs
+        ground_truth.loc[len(ground_truth)] = [0, 291, 55, 346]
+        ground_truth.loc[len(ground_truth)] = [1, 1229, 52, 1281]
+        ground_truth.loc[len(ground_truth)] = [2, 1508, 36, 1544]
+        ground_truth.loc[len(ground_truth)] = [3, 2330, 35, 2365]
+        ground_truth.loc[len(ground_truth)] = [4, 2662, 33, 2695]
+        ground_truth.loc[len(ground_truth)] = [5, 2712, 40, 2752]
+        ground_truth.loc[len(ground_truth)] = [6, 2764, 37, 2801]
+        ground_truth.loc[len(ground_truth)] = [7, 2923, 45, 2968]
+  elif isActionLogger:
+      folder_path_leno = "../logs/leno/"
+      sep_leno = ";"
+
+      systems = []
+      applications = ["targetApp"]
+      uiGroup1 = ["url","target.workbookName"]
+      uiGroup2 = ["target.sheetName"]
+      uiElement = ["target.id","target.tagName","target.type","target.name","target.href"]
+      actions = ["eventType"]
+      hierarchy_list_leno = [applications, uiGroup1, uiGroup2, uiElement, actions]
+      # Flatten the hierarchy list and remove empty lists
+      hierarchy_list = hierarchy_list_leno
+      hierarchy_columns = list(chain.from_iterable([h for h in hierarchy_list_leno if h]))
+      hierarchy_columns_app_switch = list(chain.from_iterable([systems,applications]))
+      if leno_plus: # Leno Log Sequential
+          file = leno_SR_RT_plus = pd.read_csv(folder_path_leno + "2509_extended_SR_RT_plus.csv", sep=sep_leno)
+          leno_SR_RT_plus_ground_truth = pd.read_csv(folder_path_leno + "2509_extended_SR_RT_plus_ground_truth.csv")
+          insert_spots_set_SR_RT_plus = leno_SR_RT_plus_ground_truth["start_index"].astype(int).tolist()
+          leno_SR_RT_plus_ground_truth["end_index"] = 0
+          leno_SR_RT_plus_ground_truth["end_index"] = leno_SR_RT_plus_ground_truth["start_index"] + leno_SR_RT_plus_ground_truth["length"]
+          ground_truth = leno_SR_RT_plus_ground_truth
+          print(f"Processing file: 2509_extended_SR_RT_plus.csv with {len(file)} events.")
+      else: # Leno Log Parallel
+          file = leno_SR_RT_parallel = pd.read_csv(folder_path_leno + "2509_extended_SR_RT_parallel.csv", sep=sep_leno)
+          leno_SR_RT_parallel_ground_truth = pd.read_csv(folder_path_leno + "2509_extended_SR_RT_parallel_ground_truth.csv")
+          insert_spots_set_SR_RT_parallel = leno_SR_RT_parallel_ground_truth["start_index"].astype(int).tolist()
+          leno_SR_RT_parallel_ground_truth["end_index"] = 0
+          leno_SR_RT_parallel_ground_truth["end_index"] = leno_SR_RT_parallel_ground_truth["start_index"] + leno_SR_RT_parallel_ground_truth["length"]
+          ground_truth = leno_SR_RT_parallel_ground_truth
+          print(f"Processing file: 2509_extended_SR_RT_parallel.csv with {len(file)} events.")
+  elif isHCI:
+      systems = ["machine"]
+      uiElement = ["idUIelement"]
+      actions = ["idUIaction"]
+      hierarchy_list_hci = [systems, uiElement, actions]
+      hierarchy_columns_hci = list(chain.from_iterable([h for h in hierarchy_list_hci if h]))
+      hierarchy_list = hierarchy_list_hci
+      hierarchy_columns = hierarchy_columns_hci
+      hierarchy_columns_app_switch = list(chain.from_iterable([systems]))
+
+      folder_path_HCI = "../logs/datasetForSmarterUX/"
+      hci_log_name = "raw_interactions.csv"
+      hci_ground_truth_name = "sequences_df_prep_EN.csv"
+
+      file = hci_log = pd.read_csv(folder_path_HCI + hci_log_name, sep=";")
+      hci_ground_truth = pd.read_csv(folder_path_HCI + hci_ground_truth_name, sep=",")
+      # Split the idUIelement into element and action
+      hci_log[["idUIelement", "idUIaction"]] = hci_log["idUIelement"].str.extract(r'([A-Za-z]+[0-9]+)(.*)', expand=True)
+      ground_truth = pd.DataFrame(columns=["motif_id", "start_index", "length", "end_index", "discovery_count"])
+      print(f"Processing file: HCI Dataset for Smarter UX with {len(hci_log)} events.")
+      for idx, row in hci_ground_truth.iterrows():
+          start_index = hci_log.index[hci_log["epoch"] == row["initepoch"]][0]
+          end_index = hci_log.index[hci_log["epoch"] == row["endepoch"]][0]
+          length = end_index - start_index +1
+          discovery_count = 1
+          ground_truth.loc[len(ground_truth)] = [idx, start_index, length, end_index, discovery_count]
+      ground_truth.insert(0, 'caseid', range(0, 0 + len(ground_truth)))
+          
+
+  if encoding_method == 1:
+      print("Using Word2Vec based encoding for UI Log")
+      ui_log_encoded = valmod_util.encode_word2vec(file, orderedColumnsList=hierarchy_columns, vector_size=len(hierarchy_columns))
+      column_identifier = 'w2v_'
+  elif encoding_method == 2:
+      print("Using Hierarchical based encoding for UI Log")
+      ui_log_encoded = encoding_UiLog(file,orderedColumnsList=hierarchy_columns,encoding=1)
+      column_identifier = 'tuple:id'
+  elif encoding_method == 3:
+      print("Using Co-Occurrance based encoding for UI Log")
+      ui_log_encoded = encoding_UiLog(file,orderedColumnsList=hierarchy_columns,encoding=2)
+      column_identifier = 'tuple:id'
+  else:
+      raise ValueError("Invalid encoding method selected. Choose 1, 2, or 3.")
+
+  log = grammar_util.symbolize_UILog(file, hierarchy_columns)
+
+  ground_truth_start_list = list(zip(ground_truth["caseid"], ground_truth["start_index"], ground_truth["length"]))
+
+  return {
+      "hierarchy_list": hierarchy_list,
+      "hierarchy_columns": hierarchy_columns,
+      "hierarchy_columns_app_switch": hierarchy_columns_app_switch,
+      "file": file,
+      "log": log,
+      "ground_truth": ground_truth,
+      "ui_log_encoded": ui_log_encoded,
+      "ground_truth_start_list": ground_truth_start_list,
+      "column_identifier": column_identifier
+   }
+
+
+def shuffle_x_percent(df: pd.DataFrame, percentage: float, seed=None) -> pd.DataFrame:
+    """
+    Move floor(n * percentage) rows to random new positions inside the dataframe,
+    while preserving the original order of all remaining rows.
+    """
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    n = len(df)
+    k = int(np.floor(n * percentage))  # number of rows to move
+    if k <= 0:
+        return df.copy()
+
+    # Pick k rows to relocate
+    indices_to_move = np.random.choice(n, size=k, replace=False)
+
+    # Keep order in the original df for the rows NOT moved
+    df_fixed = df.drop(index=indices_to_move).reset_index(drop=True)
+
+    # Extract rows to move, but keep their original order
+    df_move = df.iloc[sorted(indices_to_move)].reset_index(drop=True)
+
+    # Generate k random insertion positions into df_fixed
+    insert_positions = np.random.choice(len(df_fixed) + 1, size=k, replace=False)
+    insert_positions.sort()  # insert from low to high to avoid index shifts
+
+    # Insert each row at the chosen position
+    result = df_fixed.copy()
+    offset = 0
+    for pos, (_, row) in zip(insert_positions, df_move.iterrows()):
+        # Insert row
+        before = result.iloc[:pos+offset]
+        after  = result.iloc[pos+offset:]
+        result = pd.concat([before, pd.DataFrame([row]), after], ignore_index=True)
+        offset += 1
+
+    return result
+
+def generate_log_from_data_seed(dfAll: pd.DataFrame, 
+                                randomDF: pd.DataFrame,
+                                validation_path: str, 
+                                concept_name_column: str, 
+                                only_case_actions_df: pd.DataFrame,
+                                random_cases_list: pd.DataFrame,
+                                motifs: int,
+                                occurances: int,
+                                length: int,
+                                percentageMotif: float,
+                                shuffle: float):
+
+  # ---- Generating the validation data ----
+
+  log_name = f"log_motifs{motifs}_occurances{occurances}_length{length}_percentage{percentageMotif}_shuffle{shuffle}.csv"
+  new_row = {
+      "uiLogName": log_name,
+      "percentageMotifsOverLog": percentageMotif,
+      "noOfMotifs": motifs
+  }
+
+  # Calculate log length for percentage of motif to log
+  log_total_length = motifs * length * occurances * 100 / percentageMotif
+  log_noise_length = log_total_length * (100-percentageMotif)/100
+  print(f"Processing: {log_name} with the total length {log_total_length} containing {log_noise_length} events.")
+
+  if percentageMotif == 100:
+    print("100% motifs requested — generating motif-only log without noise.")
+
+    # noise log is empty
+    random_log = pd.DataFrame(columns=dfAll.columns)
+
+    # total number of motif insertions
+    total_inserts = motifs * occurances
+
+    # generate deterministic insertion positions
+    insertion_indexes = list(range(0, total_inserts * length, length))
+
+    # build indexes_df accordingly
+    indexes_df = pd.DataFrame({
+        "random_index": insertion_indexes,
+        "uplift": 0,
+        "final_index": insertion_indexes,
+        "isUsed": False,
+        "insertedCaseID": "",
+        "end_indexes": [idx + length - 1 for idx in insertion_indexes]
+    })
+
+    # create shuffled case-ID sequence exactly as before
+    case_sequence = (
+        random_cases_list["case:concept:name"]
+        .repeat(occurances)
+        .sample(frac=1)
+        .reset_index(drop=True)
+    )
+
+    assigned_positions = list(zip(insertion_indexes, case_sequence))
+    assigned_positions.sort(key=lambda x: x[0], reverse=True)
+
+    # skip noise creation and jump to insertion loop
+    goto_insertion_phase = True
+  else:
+      goto_insertion_phase = False
+
+  new_row["logLength"] = int(log_total_length)
+  # --------------------------------------------------------------
+  # INSERTION PHASE (same code, but supports motif-only mode)
+  # --------------------------------------------------------------
+
+  if goto_insertion_phase:
+      # (random_log already empty; indexes_df already defined)
+      pass
+  else:
+    # Generate random log just for noise
+    random_log = randomDF[:int(log_noise_length)]
+    random_log = random_log.drop(columns=["Unnamed: 0"],  errors='ignore')
+
+    # Get random indexes for motif insertion
+    insertion_indexes = sorted(np.random.choice(range(0, len(random_log)), size=motifs*occurances, replace=False),reverse=True)
+    indexes_df = pd.DataFrame(columns=["random_index","uplift","final_index","isUsed"])
+    indexes_df["random_index"] = insertion_indexes
+    # How much will the element be uplifted due to prior insertions
+    indexes_df["uplift"] = (len(indexes_df) - indexes_df.index-1) * length
+    # Final indexes after uplift
+    indexes_df["final_index"] = indexes_df["random_index"] + indexes_df["uplift"]
+    # Mark all as not used << Not needed, but for checking
+    indexes_df["isUsed"] = False
+    # Case-ID sequence for insertion
+    indexes_df["insertedCaseID"] = ""
+    # For checking purposes, store the end index of the motif
+    indexes_df["end_indexes"] = indexes_df["final_index"] + length - 1
+
+    # Create the case-ID sequence for insertion in random order
+    case_sequence = (
+        random_cases_list["case:concept:name"]
+        .repeat(occurances)
+        .sample(frac=1)                 # << shuffle the repeated sequence
+        .reset_index(drop=True)
+    )
+
+    # Safety check
+    if len(insertion_indexes) < len(case_sequence):
+        raise ValueError("Not enough insertion positions for all motif occurrences.")
+
+    # Assign case-IDs to insertion positions (one-to-one)
+    assigned_positions = list(zip(insertion_indexes[:len(case_sequence)], case_sequence))
+
+    # Process from highest index to lowest
+    assigned_positions.sort(key=lambda x: x[0], reverse=True)
+
+  for position, case_id in assigned_positions:
+      # Get the motif actions for the current case_id
+      motif_actions = only_case_actions_df[only_case_actions_df[concept_name_column] == case_id][:length]
+      # Shuffle the motif by the specified percentage
+      motif_actions = shuffle_x_percent(motif_actions.reset_index(), shuffle, seed=42)
+      # Insert motif actions into the random log at the specified position
+      top_part = random_log.iloc[:position]
+      bottom_part = random_log.iloc[position:]
+      random_log = pd.concat([top_part, motif_actions, bottom_part]).reset_index(drop=True)
+      # Mark the position as used
+      indexes_df.loc[indexes_df["random_index"] == position, "isUsed"] = True
+      # Store insertion details in indexes_df
+      indexes_df.loc[indexes_df["random_index"] == position, "insertedCaseID"] = case_id
+
+  random_log.reset_index(drop=True, inplace=True)
+  i=0
+  while i < motifs:
+      new_row[f"motif{i}-length"] = length
+      new_row[f"motif{i}-occurances"] = occurances
+      new_row[f"motif{i}-shuffle"] = shuffle
+      case_id = random_cases_list["case:concept:name"].iloc[i]
+      new_row[f"motif{i}-caseID"] = case_id
+      start_indexes = indexes_df[indexes_df["insertedCaseID"] == case_id]["final_index"].tolist()
+      new_row[f"motif{i}-startIndexes"] = start_indexes
+      i += 1
+
+  random_log.to_csv(os.path.join(validation_path, log_name), index=False)
+  return new_row
+
+def print_progress_bar(current, total, bar_length=40):
+    """
+    Prints a progress bar to stdout in Jupyter, overwriting the previous line.
+    """
+    fraction = current / total
+    filled = int(bar_length * fraction)
+    bar = "█" * filled + "-" * (bar_length - filled)
+    print(f"\rProgress: |{bar}| {current}/{total} ({fraction*100:.1f}%)", end="")
+
+

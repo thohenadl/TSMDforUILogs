@@ -188,6 +188,67 @@ def uihe_distance(a, b, weights):
             d += lam * weights[l]
     return d
 
+def uihe_distance_non_njit(a, b, weights):
+    """
+    Compute hierarchy-aware distance between two activities (Version A).
+    
+    Args:
+        a, b: arrays of shape (n,), integer codes for each level
+        weights: (n,) array with weights ωℓ = 2^(n-ℓ)
+    """
+    n = a.shape[0]
+    d = 0.0
+    for l in range(n):
+        if a[l] != b[l]:
+            # count equal lower levels
+            eq_lower = 0
+            for k in range(l+1, n):
+                if a[k] == b[k]:
+                    eq_lower += 1
+            lam = 1.0 - eq_lower / ((n - l) + 1)
+            d += lam * weights[l]
+    return d
+
+def motif_distance_uihe_groups(TA, TB, symbol_of_path, paths, levels, weights, ):
+    # Calculate Baseline Distance for the motif
+    distance = list()
+    min_length = min(len(TA), len(TB))
+    for i in range(min_length):
+        # From inside the brackets to the outside:
+        # 1. Get the path of i
+        # 2. Get the symbol of that path
+        # 3. Get the level representation of that symbol
+        level_a = levels[symbol_of_path[paths[TA[i]]]]
+        level_b = levels[symbol_of_path[paths[TB[i]]]]
+        measure = uihe_distance_non_njit(level_a, level_b, weights)
+        distance.append(measure)
+
+    return distance
+
+def motif_cross_distance_matrix(symbol_of_path, paths, levels, weights, max_groups):
+    """
+    Compute cross-distance matrix between motif groups using UIHE distance.
+    
+    Args:
+        symbol_of_path: Paths of each symbol
+        paths: List of all unique paths
+        levels: Hierarchy levels table
+        weights: Hierarchy weights
+        max_groups: List of motif groups (each group is a list of indices)
+        
+    Returns:
+        D: Cross-distance matrix (n x n) where n = number of motif groups"""
+    n = len(max_groups)
+    D = np.zeros((n, n), dtype=float)
+    for i in range(n):
+        for j in range(i, n):
+            TA = np.array(max_groups[i], dtype=int)
+            TB = np.array(max_groups[j], dtype=int)
+            d = motif_distance_uihe_groups(TA, TB, symbol_of_path, paths, levels, weights)
+            D[i,j] = np.mean(d)
+            D[j, i] = np.mean(d)
+    return D
+
 # ---------------- Core Distance Profile ----------------
 @njit(fastmath=True)
 def _ui_compute_diagonal(TA, TB, levels, weights, m, diags,

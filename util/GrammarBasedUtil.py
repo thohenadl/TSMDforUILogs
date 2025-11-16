@@ -1,10 +1,12 @@
 import pandas as pd
 from collections import Counter,defaultdict
-import pandas as pd
 import numpy as np
 import itertools
 import matplotlib.pyplot as plt
 
+
+from collections import defaultdict   # <-- needed for defaultdict
+from typing import List, Dict, Any
 
 ##########################
 ### Grammer Viz Code #####
@@ -105,7 +107,7 @@ def re_pair(log: pd.DataFrame):
                     if (symbols[i], symbols[i + 1]) == entry["pair"]:
                         symbols[i] = lowercase_letter # Replace first symbol with new symbol
                         symbols[i + 1] = None # Remove second symbol
-        print(len(encoding_df), " unique pairs found so far. Level: ", j)
+        print(len(encoding_df), " unique pairs found so far. Rule-Level: ", j)
         symbols = [s for s in symbols if s is not None] # Remove None entries
         two_grams = list(zip(symbols, symbols[1:]))
         two_gram_counts = Counter(two_grams)
@@ -450,60 +452,125 @@ def motif_overlap_metrics(max_groups, ground_truth):
         "over_detection_abs": np.mean(overdet_abs) if overdet_abs else 0,
     }
 
+# Util in research: May be delated for publishing
 
-##########################
-###### Valmod Code #######
-##########################
+def app_switch_miner(log: pd.DataFrame, rule_motifs: pd.DataFrame, comparison_cols: list):
+    rule_motifs["lower_app_switch"] = -1
+    rule_motifs["upper_app_switch"] = -1
 
-def remove_redundant_groups(max_groups, log, column="symbol"):
-    col = log[column].to_numpy()
-    symbol_groups = [[col[i] for i in group] for group in max_groups]
+    for i, row in rule_motifs.iterrows():
+        start_index = row['start_index']
+        rule_motifs.loc[i, 'lower_app_switch'] = int(start_index)
+        # Go down until the app changes
+        while start_index > 0 and log.loc[start_index, comparison_cols].equals(log.loc[start_index-1, comparison_cols]):
+            rule_motifs.loc[i, 'lower_app_switch'] = int(start_index)
+            start_index -= 1
+        
+        end_index = row['end_index']
+        rule_motifs.loc[i, 'upper_app_switch'] = int(end_index)
+        while end_index < len(log)-1 and log.loc[end_index, comparison_cols].equals(log.loc[end_index+1, comparison_cols]):
+            rule_motifs.loc[i, 'upper_app_switch'] = int(end_index)
+            end_index += 1
 
-    # group indexes and count
-    group_dict = defaultdict(list)
-    for idx, g in enumerate(symbol_groups):
-        group_dict[tuple(g)].append(idx)
+    return rule_motifs
 
-    # build dataframe
-    rows = []
-    for seq, idxs in group_dict.items():
-        rows.append({
-            "sequence": list(seq),
-            "occurrence": len(idxs),
-            "first_occurrence": max_groups[0]
-        })
+def similar_path_up_down(
+    df: pd.DataFrame,
+    max_groups_df: pd.DataFrame,
+    start_indices: List[int],
+    end_indices: List[int],
+    cols: List[str],
+    min_pairs: int = 2,
+) -> pd.DataFrame:
+    """
+    Compute, for each (start_index, end_index) pair, how many DOWN steps its
+    start survives when ALL start indices are compared against each other,
+    and how many UP steps its end survives when ALL end indices are compared
+    against each other. At each step we keep only value-groups (by `cols`)
+    with at least `min_pairs` members.
+    """
 
-    df = pd.DataFrame(rows)
-    return df
+    n = len(start_indices)
+    assert n == len(end_indices), "start_indices and end_indices must have same length"
 
-def test_multi_threshold_scores(ground_truth, log):
-    thresholds = np.arange(0.05, 1.01, 0.05)
-    precisions, recalls, f1_scores = [], [], []
+    # --- DOWN: operate only on the cohort of start indices (compare starts against starts) ---
+    down_iters = defaultdict(int)  # pair_idx -> iterations survived
+    active = [{"pair_idx": i, "cur": start_indices[i]} for i in range(n)]
 
-    for t in thresholds:
-        max_rule_density_count, max_groups = find_max_density_groups(log, relative_threshold=t)
-        matched, tp, fp, fn, gt1 = match_motifs_to_gt(max_groups, ground_truth)
+    while True:
+        # advance all active one step DOWN (previous rows)
+        candidates = []
+        for a in active:
+            nxt = a["cur"] - 1
+            if 0 <= nxt < len(df):
+                candidates.append({"pair_idx": a["pair_idx"], "cur": nxt})
 
-        precision = tp / (tp + fp) if (tp + fp) else 0
-        recall = tp / (tp + fn) if (tp + fn) else 0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+        if len(candidates) < min_pairs:
+            break
 
-        precisions.append(precision)
-        recalls.append(recall)
-        f1_scores.append(f1)
+        # group by column-value tuple
+        groups = defaultdict(list)
+        for c in candidates:
+            row = df.loc[c["cur"], cols]
+            key = tuple(row[col] for col in cols)
+            groups[key].append(c)
 
-    # ---- Plot curves ----
-    plt.figure(figsize=(8, 5))
-    plt.plot(thresholds, precisions, marker="o", label="Precision")
-    plt.plot(thresholds, recalls, marker="s", label="Recall")
-    plt.plot(thresholds, f1_scores, marker="^", label="F1-score")
+        # keep only groups with >= min_pairs members
+        new_active = []
+        for members in groups.values():
+            if len(members) >= min_pairs:
+                new_active.extend(members)
 
-    plt.axhline(y=1.0, color="red", linestyle="--", linewidth=1)
+        if len(new_active) < min_pairs:
+            break
 
-    plt.title("Precision / Recall / F1 vs. Threshold")
-    plt.xlabel("Relative Threshold")
-    plt.ylabel("Score")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+        # survivors increment their counters and continue
+        for s in new_active:
+            down_iters[s["pair_idx"]] += 1
+        active = new_active
+
+    # --- UP: operate only on the cohort of end indices (compare ends against ends) ---
+    up_iters = defaultdict(int)  # pair_idx -> iterations survived
+    active = [{"pair_idx": i, "cur": end_indices[i]} for i in range(n)]
+
+    while True:
+        # advance all active one step UP (following rows)
+        candidates = []
+        for a in active:
+            nxt = a["cur"] + 1
+            if 0 <= nxt < len(df):
+                candidates.append({"pair_idx": a["pair_idx"], "cur": nxt})
+
+        if len(candidates) < min_pairs:
+            break
+
+        # group by column-value tuple
+        groups = defaultdict(list)
+        for c in candidates:
+            row = df.loc[c["cur"], cols]
+            key = tuple(row[col] for col in cols)
+            groups[key].append(c)
+
+        # keep only groups with >= min_pairs members
+        new_active = []
+        for members in groups.values():
+            if len(members) >= min_pairs:
+                new_active.extend(members)
+
+        if len(new_active) < min_pairs:
+            break
+
+        # survivors increment their counters and continue
+        for s in new_active:
+            up_iters[s["pair_idx"]] += 1
+        active = new_active
+
+    # assemble per-pair results
+    max_groups_df["lower_pattern_switch"] = start_indices
+    max_groups_df["upper_pattern_switch"] = end_indices
+    for i in range(n):
+
+        max_groups_df.loc[i, "lower_pattern_switch"] = start_indices[i] - down_iters.get(i, 0)
+        max_groups_df.loc[i, "upper_pattern_switch"] = end_indices[i] + up_iters.get(i, 0)
+
+    return max_groups_df
