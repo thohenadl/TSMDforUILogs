@@ -211,6 +211,48 @@ def plot_density_curve(log, range_low=0, range_high=-1, column_name="rule_densit
     plt.tight_layout() 
     plt.show()
 
+def plot_rule_density_distribution(log: pd.DataFrame, col_name: str = "rule_density_count"):
+    counts = log[col_name].value_counts().sort_index()
+
+    # percentiles
+    p25 = log[col_name].quantile(0.25)
+    p50 = log[col_name].quantile(0.50)
+    p75 = log[col_name].quantile(0.75)
+    p90 = log[col_name].quantile(0.90)
+    p99 = log[col_name].quantile(0.99)
+
+    # cumulative distribution
+    cumulative = counts.cumsum()
+
+    fig, ax1 = plt.subplots(figsize=(10, 4))
+
+    # bar plot on primary axis
+    bars = ax1.bar(counts.index, counts.values)
+
+    # count labels
+    for x, y in zip(counts.index, counts.values):
+        ax1.text(x, y, str(y), ha='center', va='bottom', fontsize=8)
+
+    # percentile lines
+    ax1.axvline(p25, color="red", linestyle="--", label="25th percentile")
+    ax1.axvline(p50, color="green", linestyle="--", label="50th percentile (median)")
+    ax1.axvline(p75, linestyle="--", label="75th percentile")
+    ax1.axvline(p90, color="orange", linestyle="--", label="90th percentile")
+    ax1.axvline(p99, color="purple", linestyle="--", label="99th percentile")
+
+    ax1.set_xlabel(col_name)
+    ax1.set_ylabel("count")
+    ax1.set_title(f"Distribution Count of {col_name} with Percentiles")
+
+    # secondary axis for cumulative distribution
+    ax2 = ax1.twinx()
+    ax2.plot(counts.index, cumulative)
+    ax2.set_ylabel("cumulative count")
+
+    fig.legend(loc="upper right")
+    plt.show()
+
+
 def find_rules_with_symbol(encoding_df, symbol, recursive=False):
     """
     Find all grammar rules in encoding_df that include a given symbol.
@@ -332,65 +374,140 @@ def find_max_density_groups(
                     merged[-1].extend(g)
                 else:
                     merged.append(g)
-
         return max_density, merged
     
     return max_density, groups
 
 
-def find_overlaps(max_groups: list, ground_truth: pd.DataFrame):
+def evaluate_motifs(max_groups, ground_truth):
     """
-    Input:
-        max_groups: List of list of events that are close together in rule count
-        ground_truth: Dataframe that contains the case_id, start and end index and length of all existing motifs
+    Unified, efficient motif evaluation function.
     
-    Returns:
-        List of insert ranges and density ranges
+    Parameters
+    ----------
+    max_groups : list of lists
+        Each element is a list representing discovered motif indices (start..end).
+        We assume: g[0] is start index, g[-1] is end index.
+
+    ground_truth : pd.DataFrame
+        Must contain columns ["start_index", "end_index"].
+
+    Returns
+    -------
+    dict with:
+        - overlap_table (pd.DataFrame)
+        - matched_pairs (list of (motif_id, gt_id))
+        - tp, fp, fn (int)
+        - intersection_ratio, intersection_abs
+        - undercount_ratio, undercount_abs
+        - over_detection_ratio, over_detection_abs
     """
-    overlaps = []
-    for _, row in ground_truth.iterrows():
-        s1, e1 = row["start_index"], row["end_index"]
-        for g in max_groups:
-            s2, e2 = g[0], g[-1]
-            if not (e1 < s2 or e2 < s1):  # overlap condition
-                overlaps.append({"insert_range": (s1, e1), "density_range": (s2, e2)})
-    
-    return overlaps
 
-def match_motifs_to_gt(max_groups, ground_truth):
-    if not {"start_index", "end_index"}.issubset(ground_truth.columns):
-        raise ValueError("ground_truth must have 'start_index' and 'end_index' columns")
+    # ----------------------------------------------------------------------
+    # 1) Extract motif and GT ranges
+    # ----------------------------------------------------------------------
+    motif_ranges = [(g[0], g[-1]) for g in max_groups]
+    gt_ranges = list(zip(
+        ground_truth["start_index"].tolist(),
+        ground_truth["end_index"].tolist()
+    ))
 
-    pairs = []
-    ground_truth["discovery_count"] = 0
+    M, G = len(motif_ranges), len(gt_ranges)
 
-    for mi, g in enumerate(max_groups):
-        ms, me = g[0], g[-1]
-        for gi in range(len(ground_truth)):
-            gs = ground_truth.iloc[gi]["start_index"]
-            ge = ground_truth.iloc[gi]["end_index"]
-            inter = max(0, min(me, ge) - max(ms, gs) + 1)
-            if inter > 0:
-                pairs.append((mi, gi, inter))
-                ground_truth.at[gi, "discovery_count"] += 1  # increment count
+    motif_lengths = [e - s + 1 for s, e in motif_ranges]
+    gt_lengths = [e - s + 1 for s, e in gt_ranges]
 
-    # Greedy one-to-one assignment (largest overlap first)
-    pairs.sort(key=lambda x: x[2], reverse=True)
-    matched_motifs, matched_gt = set(), set()
-    matched = []
-    for mi, gi, _ in pairs:
-        if mi not in matched_motifs and gi not in matched_gt:
+    # ----------------------------------------------------------------------
+    # 2) Build Overlap Matrix (M x G)
+    # ----------------------------------------------------------------------
+    overlap = np.zeros((M, G), dtype=int)
+
+    for i, (ms, me) in enumerate(motif_ranges):
+        for j, (gs, ge) in enumerate(gt_ranges):
+            overlap[i, j] = max(0, min(me, ge) - max(ms, gs) + 1)
+
+    # ----------------------------------------------------------------------
+    # 3) Build Tidy Overlap Table (for human inspection)
+    # ----------------------------------------------------------------------
+    rows = []
+    for i, (ms, me) in enumerate(motif_ranges):
+        mlen = motif_lengths[i]
+        for j, (gs, ge) in enumerate(gt_ranges):
+            glen = gt_lengths[j]
+            ov = overlap[i, j]
+
+            rows.append({
+                "motif_id": i,
+                "gt_id": j,
+                "motif_start": ms,
+                "motif_end": me,
+                "gt_start": gs,
+                "gt_end": ge,
+                "motif_length": mlen,
+                "gt_length": glen,
+                "overlap": ov,
+                "overlap_motif_ratio": ov / mlen if mlen > 0 else 0,
+                "overlap_gt_ratio": ov / glen if glen > 0 else 0,
+            })
+
+    df = pd.DataFrame(rows)
+
+    # ----------------------------------------------------------------------
+    # 4) One-to-One Best Matching (Greedy by Overlap)
+    # ----------------------------------------------------------------------
+    candidate_pairs = df[df["overlap"] > 0].sort_values("overlap", ascending=False)
+
+    matched_motifs = set()
+    matched_gts = set()
+    matched_pairs = set()
+
+    for _, row in candidate_pairs.iterrows():
+        mi, gi = int(row["motif_id"]), int(row["gt_id"])
+        if mi not in matched_motifs and gi not in matched_gts:
             matched_motifs.add(mi)
-            matched_gt.add(gi)
-            matched.append((mi, gi))
+            matched_gts.add(gi)
+            matched_pairs.add((mi, gi))
 
-    tp = len(matched)
-    fp = len(max_groups) - tp
-    fn = len(ground_truth) - tp
-    return matched, tp, fp, fn, ground_truth
+    df["is_best_match"] = df.apply(
+        lambda r: (r["motif_id"], r["gt_id"]) in matched_pairs,
+        axis=1
+    )
 
+    tp = len(matched_pairs)
+    fp = M - tp
+    fn = G - tp
 
-def motif_overlap_metrics(max_groups, ground_truth):
+    # ----------------------------------------------------------------------
+    # 5) Metrics from Overlap Matrix
+    # ----------------------------------------------------------------------
+    # Motif-based (intersection and over-detection)
+    intersection_abs = overlap.sum(axis=1)
+    intersection_ratio = intersection_abs / np.maximum(motif_lengths, 1)
+
+    overdet_abs = np.array(motif_lengths) - intersection_abs
+    overdet_ratio = overdet_abs / np.maximum(motif_lengths, 1)
+
+    # GT-based (undercount)
+    under_abs = np.maximum(0, np.array(gt_lengths) - overlap.sum(axis=0))
+    under_ratio = under_abs / np.maximum(gt_lengths, 1)
+
+    # ----------------------------------------------------------------------
+    # 6) Final Unified Result
+    # ----------------------------------------------------------------------
+    return {
+        "overlap_table": df,
+        "matched_pairs": list(matched_pairs),
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "intersection_ratio": float(np.mean(intersection_ratio)) if M > 0 else 0,
+        "intersection_abs": float(np.mean(intersection_abs)) if M > 0 else 0,
+        "undercount_ratio": float(np.mean(under_ratio)) if G > 0 else 0,
+        "undercount_abs": float(np.mean(under_abs)) if G > 0 else 0,
+        "over_detection_ratio": float(np.mean(overdet_ratio)) if M > 0 else 0,
+        "over_detection_abs": float(np.mean(overdet_abs)) if M > 0 else 0,
+    }
+
     """
     Compute motif-to-ground-truth overlap statistics.
 
