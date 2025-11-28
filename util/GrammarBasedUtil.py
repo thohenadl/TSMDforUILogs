@@ -199,60 +199,6 @@ def generate_density_count(encoding_df, log, column_name="rule_density_count"):
                 log.loc[i:i + seq_len - 1, column_name] += 1
     return log
 
-def plot_density_curve(log, range_low=0, range_high=-1, column_name="rule_density_count"):
-    plt.figure(figsize=(10, 4)) 
-    if range_high < 0:
-        range_high = len(log[column_name])
-    plt.plot(log.index[range_low:range_high], log.iloc[range_low:range_high][column_name], linewidth=2) 
-    plt.title("Rule Density Across Events in Log") 
-    plt.xlabel("Index (Event position in log)") 
-    plt.ylabel("Rule Density Count") 
-    plt.grid(True, alpha=0.3) 
-    plt.tight_layout() 
-    plt.show()
-
-def plot_rule_density_distribution(log: pd.DataFrame, col_name: str = "rule_density_count"):
-    counts = log[col_name].value_counts().sort_index()
-
-    # percentiles
-    p25 = log[col_name].quantile(0.25)
-    p50 = log[col_name].quantile(0.50)
-    p75 = log[col_name].quantile(0.75)
-    p90 = log[col_name].quantile(0.90)
-    p99 = log[col_name].quantile(0.99)
-
-    # cumulative distribution
-    cumulative = counts.cumsum()
-
-    fig, ax1 = plt.subplots(figsize=(10, 4))
-
-    # bar plot on primary axis
-    bars = ax1.bar(counts.index, counts.values)
-
-    # count labels
-    for x, y in zip(counts.index, counts.values):
-        ax1.text(x, y, str(y), ha='center', va='bottom', fontsize=8)
-
-    # percentile lines
-    ax1.axvline(p25, color="red", linestyle="--", label="25th percentile")
-    ax1.axvline(p50, color="green", linestyle="--", label="50th percentile (median)")
-    ax1.axvline(p75, linestyle="--", label="75th percentile")
-    ax1.axvline(p90, color="orange", linestyle="--", label="90th percentile")
-    ax1.axvline(p99, color="purple", linestyle="--", label="99th percentile")
-
-    ax1.set_xlabel(col_name)
-    ax1.set_ylabel("count")
-    ax1.set_title(f"Distribution Count of {col_name} with Percentiles")
-
-    # secondary axis for cumulative distribution
-    ax2 = ax1.twinx()
-    ax2.plot(counts.index, cumulative)
-    ax2.set_ylabel("cumulative count")
-
-    fig.legend(loc="upper right")
-    plt.show()
-
-
 def find_rules_with_symbol(encoding_df, symbol, recursive=False):
     """
     Find all grammar rules in encoding_df that include a given symbol.
@@ -308,14 +254,15 @@ def find_rules_with_symbol(encoding_df, symbol, recursive=False):
 
     return recursive_rules
 
-import itertools
 
 def find_max_density_groups(
     log, 
-    column="rule_density_count", 
+    column="rule_density_count",
+    method="threshold",
     relative_threshold=None, 
     absolute_threshold=None,
     merge_gap=None,
+    percentile_threshold: float = 0.95,
 ):
     """
     Find indices of maximum (or near-maximum) rule density and group consecutive ones.
@@ -326,13 +273,19 @@ def find_max_density_groups(
         DataFrame containing the rule density column.
     column : str, default="rule_density_count"
         Name of the column with rule density values.
+    method : str, default="threshold"
+        Method to determine maximum density groups. Options are "threshold", "percentile", or "MAD".
     relative_threshold : float, optional
         Include all values >= (relative_threshold * max_density).
         For example, 0.9 means include all densities >= 90% of the max.
     absolute_threshold : float or int, optional
         Include all values >= (max_density - absolute_threshold).
         For example, 1 means include all densities within 1 count of the max.
-
+    merge_gap : int, optional
+        Maximum absolute gap between groups to merge them.
+    percentile_threshold: float, default=0.95
+        Percentile threshold for "percentile" method.
+        
     Returns
     -------
     max_density : float
@@ -341,20 +294,44 @@ def find_max_density_groups(
         Each inner list contains consecutive indices meeting the threshold.
     """
 
-    # Step 1: find maximum density
+    # Maximum density value
     max_density = log[column].max()
 
-    # Step 2: determine cutoff based on threshold
-    if relative_threshold is not None:
-        cutoff = max_density * relative_threshold
-    elif absolute_threshold is not None:
-        cutoff = max_density - absolute_threshold
+    #Variant A: Threshold Based
+    if method == "threshold":
+        # Step 2: determine cutoff based on threshold
+        if relative_threshold is not None:
+            cutoff = max_density * relative_threshold
+        elif absolute_threshold is not None:
+            cutoff = max_density - absolute_threshold
+        else:
+            cutoff = max_density
+
+    # Variant B: Percentile Based
+    elif method == "percentile":
+        cutoff = log[column].quantile(percentile_threshold)
+
+    elif method == "MAD":
+        # Step 2: determine cutoff
+        # ---- MAD-based robust threshold ----
+        vals = log[column]
+        nz = vals[vals > 0]
+
+        median_nz = nz.median()
+        print("Median of non-zero densities:", median_nz)
+        mad_nz = (nz - median_nz).abs().median()
+        print("MAD of non-zero densities:", mad_nz)
+
+        cutoff = median_nz + 3 * mad_nz
+        print("Computed cutoff using median + 3*MAD:", cutoff)
     else:
-        cutoff = max_density
+        raise ValueError("Invalid method. Choose 'threshold', 'percentile', or 'MAD'.")
+
 
     # Step 3: get indices meeting the cutoff
     valid_indices = log.index[log[column] >= cutoff].tolist()
-
+    if not valid_indices:
+        return []
     # Step 4: group consecutive indices
     groups = []
     for _, group in itertools.groupby(
@@ -376,7 +353,7 @@ def find_max_density_groups(
                     merged.append(g)
         return max_density, merged
     
-    return max_density, groups
+    return groups, None
 
 
 def evaluate_motifs(max_groups, ground_truth):
@@ -508,66 +485,56 @@ def evaluate_motifs(max_groups, ground_truth):
         "over_detection_abs": float(np.mean(overdet_abs)) if M > 0 else 0,
     }
 
+def evaluate_case_based_recall_precision(overlap_df_extended: pd.DataFrame, ground_truth: pd.DataFrame):
     """
-    Compute motif-to-ground-truth overlap statistics.
-
-    Parameters
-    ----------
-    max_groups : list of lists
-        Each element is a list [start_index, ..., end_index] for an identified motif group.
-    ground_truth : pd.DataFrame
-        Must contain columns ['start_index', 'end_index'].
-
-    Returns
-    -------
-    dict with:
-        - intersection_ratio / intersection_abs
-        - undercount_ratio / undercount_abs
-        - over_detection_ratio / over_detection_abs
+    Used to evaluate motifs based on the LOCOmotif cluster they were identified in.
     """
+    # 1. does the GT case appear in the cluster?
+    overlap_df_extended["match"] = overlap_df_extended.apply(
+        lambda r: r["gt_case_id"] in (r["original_case_ids"] if isinstance(r["original_case_ids"], list) else []),
+    axis=1
+    )
 
-    intersection_ratios, intersection_abs = [], []
-    undercount_ratios, undercount_abs = [], []
-    overdet_ratios, overdet_abs = [], []
+    # 2. cluster-level metrics per gt_case_id
+    def compute_metrics(g):
+        tp = g["match"].sum()
+        fp = len(g) - tp
+        fn = 1 - (tp > 0)   # untreated GT → FN = 1 if cluster never detects it
 
-    # --- Intersection (motif overlap with ground truth) ---
-    for g in max_groups:
-        s2, e2 = g[0], g[-1]
-        g_len = e2 - s2 + 1
-        overlap_len = 0
-        for _, row in ground_truth.iterrows():
-            s1, e1 = row["start_index"], row["end_index"]
-            inter = max(0, min(e1, e2) - max(s1, s2) + 1)
-            overlap_len += inter
-        intersection_abs.append(overlap_len)
-        intersection_ratios.append(overlap_len / g_len if g_len > 0 else 0)
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall    = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1        = (2 * precision * recall / (precision + recall)
+                     if (precision + recall) > 0 else 0)
 
-        # Over-detection: motif part outside GT
-        over_len = g_len - overlap_len
-        overdet_abs.append(over_len)
-        overdet_ratios.append(over_len / g_len if g_len > 0 else 0)
+        return pd.Series({
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "precision": precision,
+            "recall": recall,
+            "f1_score": f1,
+        })
 
-    # --- Undercount (ground truth not covered by motifs) ---
-    for _, row in ground_truth.iterrows():
-        s1, e1 = row["start_index"], row["end_index"]
-        gt_len = e1 - s1 + 1
-        overlap_len = 0
-        for g in max_groups:
-            s2, e2 = g[0], g[-1]
-            inter = max(0, min(e1, e2) - max(s1, s2) + 1)
-            overlap_len += inter
-        undercount_abs.append(max(0, gt_len - overlap_len))
-        undercount_ratios.append(1 - (overlap_len / gt_len if gt_len > 0 else 0))
+    return overlap_df_extended.groupby("gt_case_id").apply(compute_metrics).reset_index()
 
-    # --- Aggregate ---
-    return {
-        "intersection_ratio": np.mean(intersection_ratios) if intersection_ratios else 0,
-        "intersection_abs": np.mean(intersection_abs) if intersection_abs else 0,
-        "undercount_ratio": np.mean(undercount_ratios) if undercount_ratios else 0,
-        "undercount_abs": np.mean(undercount_abs) if undercount_abs else 0,
-        "over_detection_ratio": np.mean(overdet_ratios) if overdet_ratios else 0,
-        "over_detection_abs": np.mean(overdet_abs) if overdet_abs else 0,
-    }
+
+def mark_overlaps_grammer_locomotif_indexed(df1: pd.DataFrame, df2: pd.DataFrame, col_df1: str = "original_df_range", col_df2: str = "group"):
+    # 1) Build inverted index from df2
+    index_map = defaultdict(set)   # number -> set of df2 row indices
+
+    for j, r2 in enumerate(df2[col_df2]):
+        for val in r2:
+            index_map[val].add(j)
+
+    # 2) For each df1 range, check if *any* value appears in index_map
+    matches = []
+    for r1 in df1[col_df1]:
+        has_overlap = any(val in index_map for val in r1)
+        matches.append(has_overlap)
+
+    df1 = df1.copy()
+    df1["grammer_motif_match"] = matches
+    return df1
 
 # Util in research: May be delated for publishing
 
@@ -691,3 +658,103 @@ def similar_path_up_down(
         max_groups_df.loc[i, "upper_pattern_switch"] = end_indices[i] + up_iters.get(i, 0)
 
     return max_groups_df
+
+
+#########################
+#########################
+# ---- Visualisation ----
+#########################
+#########################
+
+def plot_density_curve(log, range_low=0, range_high=-1, column_name="rule_density_count"):
+    plt.figure(figsize=(10, 4)) 
+    if range_high < 0:
+        range_high = len(log[column_name])
+    plt.plot(log.index[range_low:range_high], log.iloc[range_low:range_high][column_name], linewidth=2) 
+    plt.title("Rule Density Across Events in Log") 
+    plt.xlabel("Index (Event position in log)") 
+    plt.ylabel("Rule Density Count") 
+    plt.grid(True, alpha=0.3) 
+    plt.tight_layout() 
+    plt.show()
+
+def plot_rule_density_distribution(log: pd.DataFrame, col_name: str = "rule_density_count"):
+    counts = log[col_name].value_counts().sort_index()
+
+    # percentiles
+    p25 = log[col_name].quantile(0.25)
+    p50 = log[col_name].quantile(0.50)
+    p75 = log[col_name].quantile(0.75)
+    p90 = log[col_name].quantile(0.90)
+    p99 = log[col_name].quantile(0.99)
+
+    # cumulative distribution
+    cumulative = counts.cumsum()
+
+    fig, ax1 = plt.subplots(figsize=(10, 4))
+
+    # bar plot on primary axis
+    bars = ax1.bar(counts.index, counts.values)
+
+    # count labels
+    for x, y in zip(counts.index, counts.values):
+        ax1.text(x, y, str(y), ha='center', va='bottom', fontsize=8)
+
+    # percentile lines
+    ax1.axvline(p25, color="red", linestyle="--", label="25th percentile")
+    ax1.axvline(p50, color="green", linestyle="--", label="50th percentile (median)")
+    ax1.axvline(p75, linestyle="--", label="75th percentile")
+    ax1.axvline(p90, color="orange", linestyle="--", label="90th percentile")
+    ax1.axvline(p99, color="purple", linestyle="--", label="99th percentile")
+
+    ax1.set_xlabel(col_name)
+    ax1.set_ylabel("count")
+    ax1.set_title(f"Distribution Count of {col_name} with Percentiles")
+
+    # secondary axis for cumulative distribution
+    ax2 = ax1.twinx()
+    ax2.plot(counts.index, cumulative)
+    ax2.set_ylabel("cumulative count")
+
+    fig.legend(loc="upper right")
+    plt.show()
+
+def plot_rule_density_with_highlights(log: pd.DataFrame,
+                                      highlight_df: pd.DataFrame,
+                                      density_col: str = "rule_density_count",
+                                      range_col: str = "original_df_range",
+                                      figsize=(10, 4)):
+    """
+    Visualizes the rule density curve and highlights the motif/range regions.
+
+    Parameters
+    ----------
+    log : pd.DataFrame
+        Log containing the density values.
+    highlight_df : pd.DataFrame
+        DataFrame containing ranges in the column `range_col`,
+        where each value is a list of integer indices.
+    density_col : str
+        Column name for the rule density count in `log`.
+    range_col : str
+        Column name in highlight_df that stores the index ranges (lists of ints).
+    figsize : tuple
+        Size of the plot.
+    """
+
+    plt.figure(figsize=figsize)
+
+    # main curve
+    plt.plot(log.index, log[density_col], linewidth=2)
+
+    # highlighted regions
+    for g in highlight_df[range_col].tolist():
+        if len(g) > 0:
+            plt.axvspan(g[0], g[-1], color="red", alpha=0.3)
+
+    plt.title("Rule Density Curve — Highlighted Max Density Regions")
+    plt.xlabel("Index (Event position in log)")
+    plt.ylabel("Rule Density Count")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()

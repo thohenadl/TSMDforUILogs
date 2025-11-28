@@ -7,14 +7,14 @@ MEDIUM_SIZE = 12
 BIG_SIZE = 14
 
 
-def plot_motif_sets(series, motif_sets, gt=None, dimension_names=None, legend=True):
+def plot_motif_sets(series, motif_sets, max_plots:int, gt=None, dimension_names=None, legend=True, ):
     if series.ndim == 1:
         series = np.expand_dims(series, axis=1)
     if dimension_names is None:
         dimension_names = [f"dim {d+1}" for d in range(series.shape[1])]
 
     n = len(series)
-    fig, axs = plt.subplots(len(motif_sets) + 1, 1, figsize=(12, (len(motif_sets) + 1) * 2), sharex=True, sharey=True)
+    fig, axs = plt.subplots(min(len(motif_sets),max_plots) + 1, 1, figsize=(12, (min(len(motif_sets),max_plots) + 1) * 2), sharex=True, sharey=True)
 
     if np.array(axs).ndim == 0:
         axs = [axs]
@@ -29,6 +29,7 @@ def plot_motif_sets(series, motif_sets, gt=None, dimension_names=None, legend=Tr
     if gt is not None:
         plot_ground_truth_ax(axs[0], gt, n)
 
+    motif_sets = motif_sets[:max_plots]
     for i, motif_set in enumerate(motif_sets):
         if type(motif_set) is tuple:
             _, motif_set = motif_set

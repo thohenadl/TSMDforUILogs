@@ -910,6 +910,7 @@ def encode_word2vec(uiLog: pd.DataFrame, orderedColumnsList: list, vector_size: 
 
     # Create a single token per row by concatenating selected column values
     token_series = df[orderedColumnsList].astype(str).agg('|'.join, axis=1)
+    print(type(token_series))
 
     # Prepare sentences as sequences (mocking process traces using a sliding window approach)
     # For simplicity, treat the entire series as one text to be discovered

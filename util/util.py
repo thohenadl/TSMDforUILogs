@@ -918,10 +918,13 @@ def read_data_for_processing(isSmartRPA2024: bool,
           insert_spots_set = set(insert_spots_flat)
           # Iterate over the start indexes and create new rows in the ground truth dataframe
           for element in insert_spots_set:
-              new_row = {"caseid": caseid,
+              new_row = {"motif_number": motif,
+                        "caseid": caseid,
                         "start_index": element,
                         "length": motif_length,
-                        "end_index": int(element + motif_length - 1)}
+                        "end_index": int(element + motif_length - 1),
+                        "total_occurances": int(occurances),
+                        "shuffle": int(shuffle)}
               ground_truth = pd.concat([ground_truth, pd.DataFrame([new_row])], ignore_index=True)
           motif += 1
 
