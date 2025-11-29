@@ -75,7 +75,7 @@ def build_2gram_dataframe(log, column="symbol"):
 
     return two_gram_df
 
-def re_pair(log: pd.DataFrame):
+def re_pair(log: pd.DataFrame, printing: bool = False):
     """
     Perform Re-Pair compression on the 'symbol' column of the log DataFrame.
     Returns:
@@ -107,7 +107,8 @@ def re_pair(log: pd.DataFrame):
                     if (symbols[i], symbols[i + 1]) == entry["pair"]:
                         symbols[i] = lowercase_letter # Replace first symbol with new symbol
                         symbols[i + 1] = None # Remove second symbol
-        print(len(encoding_df), " unique pairs found so far. Rule-Level: ", j)
+        if printing:
+            print(len(encoding_df), " unique pairs found so far. Rule-Level: ", j)
         symbols = [s for s in symbols if s is not None] # Remove None entries
         two_grams = list(zip(symbols, symbols[1:]))
         two_gram_counts = Counter(two_grams)
@@ -762,18 +763,19 @@ def motif_level_metrics(df):
         precision = tp / (tp + fp) if tp + fp > 0 else 0.0
         recall = tp / (tp + fn) if tp + fn > 0 else 0.0
         f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
-
-        results.append([motif, precision, recall, f1, tp, fp, fn, required_total])
+        if "caseid" not in g.columns:
+            caseid = "N/A"
+        else:
+            caseid = g["caseid"].unique()
+        results.append([motif, caseid, precision, recall, f1, tp, fp, fn, required_total])
 
     unmapped = df[df["motif"].isna()].shape[0]
-    results.append(["UNMAPPED", 0.0, 0.0, 0.0, 0, unmapped, 0, 0])
+    results.append(["UNMAPPED","-", 0.0, 0.0, 0.0, 0, unmapped, 0, 0])    
 
     return pd.DataFrame(
         results,
-        columns=["motif", "precision", "recall", "f1", "tp", "fp", "fn", "required_total"]
+        columns=["motif","caseid", "precision", "recall", "f1", "tp", "fp", "fn", "required_total"]
     )
-
-
 
 def purity_per_two_columns(df, cluster_by_col="caseid", purity_col_name="cluster_id"):
     df_local = df.copy()
