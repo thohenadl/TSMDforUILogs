@@ -485,38 +485,6 @@ def evaluate_motifs(max_groups, ground_truth):
         "over_detection_abs": float(np.mean(overdet_abs)) if M > 0 else 0,
     }
 
-def evaluate_case_based_recall_precision(overlap_df_extended: pd.DataFrame, ground_truth: pd.DataFrame):
-    """
-    Used to evaluate motifs based on the LOCOmotif cluster they were identified in.
-    """
-    # 1. does the GT case appear in the cluster?
-    overlap_df_extended["match"] = overlap_df_extended.apply(
-        lambda r: r["gt_case_id"] in (r["original_case_ids"] if isinstance(r["original_case_ids"], list) else []),
-    axis=1
-    )
-
-    # 2. cluster-level metrics per gt_case_id
-    def compute_metrics(g):
-        tp = g["match"].sum()
-        fp = len(g) - tp
-        fn = 1 - (tp > 0)   # untreated GT → FN = 1 if cluster never detects it
-
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall    = tp / (tp + fn) if (tp + fn) > 0 else 0
-        f1        = (2 * precision * recall / (precision + recall)
-                     if (precision + recall) > 0 else 0)
-
-        return pd.Series({
-            "tp": tp,
-            "fp": fp,
-            "fn": fn,
-            "precision": precision,
-            "recall": recall,
-            "f1_score": f1,
-        })
-
-    return overlap_df_extended.groupby("gt_case_id").apply(compute_metrics).reset_index()
-
 
 def mark_overlaps_grammer_locomotif_indexed(df1: pd.DataFrame, df2: pd.DataFrame, col_df1: str = "original_df_range", col_df2: str = "group"):
     # 1) Build inverted index from df2
@@ -659,6 +627,168 @@ def similar_path_up_down(
 
     return max_groups_df
 
+def join_discovery_with_ground_truth(final_discovery_result, ground_truth, motif_df):
+    """
+    Join the final discovery result's overlap table with ground truth and motif details.
+    Parameters
+    ----------
+    final_discovery_result : pd.DataFrame
+        Output of evaluate_motifs(), containing "overlap_table".
+    ground_truth : pd.DataFrame
+        Ground truth DataFrame without "gt_id" column.
+    motif_df : pd.DataFrame
+        DataFrame of discovered motifs with index as "motif_id".
+    """
+    overlap_table_locomotif = final_discovery_result["overlap_table"]
+
+    gt_result_join_overlap = overlap_table_locomotif[overlap_table_locomotif["is_best_match"] == True]
+    try: 
+        ground_truth.reset_index(inplace=True)
+    except:
+        pass
+    ground_truth["gt_id"] = ground_truth.index
+    gt_result_join_overlap = gt_result_join_overlap.merge(
+        ground_truth,
+        how="outer",
+        left_on="gt_id",
+        right_on="gt_id",   # must exist in ground_truth
+        suffixes=("", "_gt")
+    )
+
+    gt_result_join_overlap = gt_result_join_overlap.merge(
+        motif_df,                 # use motif_df with 0..M-1 index
+        how="outer",
+        left_on="motif_id",
+        right_index=True,
+        suffixes=("", "_locomotif")
+    )
+    return gt_result_join_overlap
+
+def cluster_level_metrics(df):
+    """
+    Calculate precision, recall, and F1-score at the cluster level from LOCOmotif.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must contain columns:
+            - 'cluster_id': identifier for each cluster
+            - 'caseid': identifier for each case (can be NaN)
+            - 'total_occurances': total required occurrences for each caseid (can be NaN)
+    """
+    results = []
+
+    for clust, g in df.groupby('cluster_id'):
+        if pd.isna(clust):
+            continue
+
+        # Caseids that appear in this particular cluster
+        caseids_in_cluster = g['caseid'].dropna().unique()
+
+        if len(caseids_in_cluster) == 0:
+            required_total = 0
+        else:
+            # Sum the required total occurrences for those caseids (from whole df)
+            required_total = (
+                df.loc[df['caseid'].isin(caseids_in_cluster), 'total_occurances']
+                .dropna()
+                .max()
+            )
+
+        # True positives: rows where this cluster has a caseid
+        tp = g['caseid'].notna().sum()
+
+        # False negatives: required_total - TP (lower bounded by 0)
+        fn = max(required_total - tp, 0)
+
+        # False positives: cluster predicted but caseid missing
+        fp = g['caseid'].isna().sum()
+
+        precision = tp / (tp + fp) if tp + fp > 0 else 0.0
+        recall = tp / (tp + fn) if tp + fn > 0 else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
+
+        results.append([clust, precision, recall, f1, tp, fp, fn, required_total])
+
+    return pd.DataFrame(
+        results,
+        columns=["cluster_id", "precision", "recall", "f1", "tp", "fp", "fn", "required_total"]
+    )
+
+def motif_level_metrics(df):
+    """
+    Calculate precision, recall, and F1-score at the motif level.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must contain columns:
+            - 'motif': identifier for each motif
+            - 'motif_id': identifier for each motif instance (can be NaN)
+            - 'caseid': identifier for each case (can be NaN)
+            - 'cluster_id': identifier for each cluster (can be NaN)
+            - 'total_occurances': total required occurrences for each caseid (can be NaN)
+    """
+    results = []
+
+    for motif, g in df.groupby("motif"):
+        if pd.isna(motif):
+            continue
+
+        # true positives = rows in this motif with a caseid
+        tp_rows = g[g["motif_id"].notna()]
+        tp = len(tp_rows)
+
+        caseids_in_motif = tp_rows["caseid"].unique()
+        required_total = (
+            df.loc[df["caseid"].isin(caseids_in_motif), "total_occurances"]
+            .dropna()
+            .max()
+            if len(caseids_in_motif) > 0 else 0
+        )
+
+        fn = max(required_total - tp, 0)
+
+        # ---------------------------------------------
+        # NEW FALSE-POSITIVE LOGIC (cluster contamination)
+        # ---------------------------------------------
+        fp = 0
+        cluster_ids = tp_rows["cluster_id"].dropna().unique()
+
+        for cid in cluster_ids:
+            cluster_group = df[df["cluster_id"] == cid]
+            fp += cluster_group[cluster_group["motif"] != motif].shape[0]
+
+        precision = tp / (tp + fp) if tp + fp > 0 else 0.0
+        recall = tp / (tp + fn) if tp + fn > 0 else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
+
+        results.append([motif, precision, recall, f1, tp, fp, fn, required_total])
+
+    unmapped = df[df["motif"].isna()].shape[0]
+    results.append(["UNMAPPED", 0.0, 0.0, 0.0, 0, unmapped, 0, 0])
+
+    return pd.DataFrame(
+        results,
+        columns=["motif", "precision", "recall", "f1", "tp", "fp", "fn", "required_total"]
+    )
+
+
+
+def purity_per_two_columns(df, cluster_by_col="caseid", purity_col_name="cluster_id"):
+    df_local = df.copy()
+    df_local[purity_col_name] = df_local[purity_col_name].astype("object")
+
+    def purity(g):
+        counts = g[purity_col_name].value_counts(dropna=False)
+        return counts.max() / len(g)
+
+    return (
+        df_local
+        .groupby(cluster_by_col)
+        .apply(purity, include_groups=False)   # <-- fixes the warning
+        .rename("purity")
+    )
 
 #########################
 #########################

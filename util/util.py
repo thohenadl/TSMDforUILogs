@@ -961,21 +961,23 @@ def read_data_for_processing(isSmartRPA2024: bool,
       hierarchy_columns = list(chain.from_iterable([h for h in hierarchy_list_leno if h]))
       hierarchy_columns_app_switch = list(chain.from_iterable([systems,applications]))
       if leno_plus: # Leno Log Sequential
-          file = leno_SR_RT_plus = pd.read_csv(folder_path_leno + "2509_extended_SR_RT_plus.csv", sep=sep_leno)
-          leno_SR_RT_plus_ground_truth = pd.read_csv(folder_path_leno + "2509_extended_SR_RT_plus_ground_truth.csv")
+          file = leno_SR_RT_plus = pd.read_csv(folder_path_leno + "202511_extended_SR_RT_plus.csv", sep=sep_leno)
+          leno_SR_RT_plus_ground_truth = pd.read_csv(folder_path_leno + "202511_ground_truth_extended_SR_RT_plus.csv",sep=sep_leno)
           insert_spots_set_SR_RT_plus = leno_SR_RT_plus_ground_truth["start_index"].astype(int).tolist()
           leno_SR_RT_plus_ground_truth["end_index"] = 0
           leno_SR_RT_plus_ground_truth["end_index"] = leno_SR_RT_plus_ground_truth["start_index"] + leno_SR_RT_plus_ground_truth["length"]
+          leno_SR_RT_plus_ground_truth["total_occurances"] = 50
           ground_truth = leno_SR_RT_plus_ground_truth
-          print(f"Processing file: 2509_extended_SR_RT_plus.csv with {len(file)} events.")
+          print(f"Processing file: 202511_extended_SR_RT_plus.csv with {len(file)} events.")
       else: # Leno Log Parallel
-          file = leno_SR_RT_parallel = pd.read_csv(folder_path_leno + "2509_extended_SR_RT_parallel.csv", sep=sep_leno)
-          leno_SR_RT_parallel_ground_truth = pd.read_csv(folder_path_leno + "2509_extended_SR_RT_parallel_ground_truth.csv")
+          file = leno_SR_RT_parallel = pd.read_csv(folder_path_leno + "202511_extended_SR_RT_parallel.csv", sep=sep_leno)
+          leno_SR_RT_parallel_ground_truth = pd.read_csv(folder_path_leno + "202511_ground_truth_extended_SR_RT_parallel.csv",sep=sep_leno)
           insert_spots_set_SR_RT_parallel = leno_SR_RT_parallel_ground_truth["start_index"].astype(int).tolist()
           leno_SR_RT_parallel_ground_truth["end_index"] = 0
           leno_SR_RT_parallel_ground_truth["end_index"] = leno_SR_RT_parallel_ground_truth["start_index"] + leno_SR_RT_parallel_ground_truth["length"]
+          leno_SR_RT_parallel_ground_truth["total_occurances"] = 50
           ground_truth = leno_SR_RT_parallel_ground_truth
-          print(f"Processing file: 2509_extended_SR_RT_parallel.csv with {len(file)} events.")
+          print(f"Processing file: 202511_extended_SR_RT_parallel.csv with {len(file)} events.")
   elif isHCI:
       systems = ["machine"]
       uiElement = ["idUIelement"]
