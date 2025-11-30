@@ -891,42 +891,57 @@ def compute_discovery_coverage(gt_tuples, discovered_starts, window_size, thresh
 
 
 # Replaces encoding_uiLog function to use word2vec method with single sentence
-def encode_word2vec(uiLog: pd.DataFrame, orderedColumnsList: list, vector_size: int = 32, window: int = 5, min_count: int = 1) -> pd.DataFrame:
+def encode_word2vec(uiLog: pd.DataFrame,
+                    orderedColumnsList: list,
+                    vector_size: int = 32,
+                    window: int = 5,
+                    min_count: int = 1,
+                    completeCorpusLog: pd.DataFrame = None) -> pd.DataFrame:
     """
-    Applies Word2Vec embedding to concatenated column values from the UI log to generate a continuous vector encoding.
-    Adds vector components as new columns to the DataFrame.
-
-    Args:
-        uiLog (pd.DataFrame): The UI log DataFrame.
-        orderedColumnsList (list): Columns to concatenate as tokens for Word2Vec.
-        vector_size (int): Dimensionality of the Word2Vec vectors.
-        window (int): Window size for Word2Vec.
-        min_count (int): Minimum count for a token to be included in training.
-
-    Returns:
-        pd.DataFrame: DataFrame with Word2Vec embedding vectors added.
+    Same functionality as before, but trains Word2Vec on a larger corpus if provided.
     """
+
+    # Select training source
+    if completeCorpusLog is not None:
+        train_df = completeCorpusLog
+    else:
+        train_df = uiLog
+
     df = uiLog.copy()
 
-    # Create a single token per row by concatenating selected column values
-    token_series = df[orderedColumnsList].astype(str).agg('|'.join, axis=1)
+    # Tokens for training
+    train_tokens = (
+        train_df[orderedColumnsList]
+        .astype(str)
+        .agg('|'.join, axis=1)
+        .tolist()
+    )
 
-    # Prepare sentences as sequences (mocking process traces using a sliding window approach)
-    # For simplicity, treat the entire series as one text to be discovered
-    sentences = [token_series.tolist()]
+    # Tokens for inference (same transformation, but only for uiLog)
+    ui_tokens = (
+        df[orderedColumnsList]
+        .astype(str)
+        .agg('|'.join, axis=1)
+    )
 
-    # Train Word2Vec model
-    model = Word2Vec(sentences, vector_size=vector_size, window=window, min_count=min_count, sg=1)
+    # Train Word2Vec
+    model = Word2Vec(
+        [train_tokens],
+        vector_size=vector_size,
+        window=window,
+        min_count=min_count,
+        sg=1
+    )
 
-    # Map each token back to its vector
-    vectors = token_series.apply(lambda token: model.wv[token] if token in model.wv else [0.0]*vector_size)
+    # Map vectors for uiLog only
+    vectors = ui_tokens.apply(
+        lambda token: model.wv[token] if token in model.wv else [0.0] * vector_size
+    )
     vector_df = pd.DataFrame(vectors.tolist(), index=df.index)
-    vector_df.columns = [f'w2v_{i}' for i in range(vector_size)]
+    vector_df.columns = [f"w2v_{i}" for i in range(vector_size)]
 
-    # Combine original DataFrame with vector representation
-    result_df = pd.concat([df, vector_df], axis=1)
+    return pd.concat([df, vector_df], axis=1)
 
-    return result_df
 
 def compute_matrix_profile(uiLog_w2v, col_identifier: str, window_size: int):
     w2v_columns = [col for col in uiLog_w2v.columns if col.startswith(col_identifier)]

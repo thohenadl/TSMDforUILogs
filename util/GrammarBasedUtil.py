@@ -740,6 +740,9 @@ def motif_level_metrics(df):
         tp_rows = g[g["motif_id"].notna()]
         tp = len(tp_rows)
 
+        # average discovered motif length
+        mlen = g["motif_length"].dropna().mean() if tp > 0 else 0.0
+        
         caseids_in_motif = tp_rows["caseid"].unique()
         required_total = (
             df.loc[df["caseid"].isin(caseids_in_motif), "total_occurances"]
@@ -767,14 +770,14 @@ def motif_level_metrics(df):
             caseid = "N/A"
         else:
             caseid = g["caseid"].unique()
-        results.append([motif, caseid, precision, recall, f1, tp, fp, fn, required_total])
+        results.append([motif, caseid, mlen, precision, recall, f1, tp, fp, fn, required_total])
 
     unmapped = df[df["motif"].isna()].shape[0]
     results.append(["UNMAPPED","-", 0.0, 0.0, 0.0, 0, unmapped, 0, 0])    
 
     return pd.DataFrame(
         results,
-        columns=["motif","caseid", "precision", "recall", "f1", "tp", "fp", "fn", "required_total"]
+        columns=["motif","caseid","average_discovered_motif_length", "precision", "recall", "f1", "tp", "fp", "fn", "required_total"]
     )
 
 def purity_per_two_columns(df, cluster_by_col="caseid", purity_col_name="cluster_id"):

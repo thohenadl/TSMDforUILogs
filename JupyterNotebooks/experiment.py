@@ -33,7 +33,10 @@ def run_experiment(log_name_smartRPA: str,
                    encoding_method: int=1, 
                    rule_density_threshold: float=0.8, 
                    app_switch_similarity_threshold: float=0.75,
-                   saftey_margin_factor: int=2,
+                   safety_margin_factor: int=1,
+                   percentile_threshold: float=0.97,
+                   word2vec_vector_size_factor: int=1,
+                   rho_LoCoMotif : float=0.9,
                    printing: bool=False,
                    plotting: bool=False) -> pd.DataFrame:
     isSmartRPA2024 = False
@@ -48,7 +51,7 @@ def run_experiment(log_name_smartRPA: str,
     #### Experiment Step 1: Data Loading and Preprocessing ####
     ###########################################################
     data_for_processing = read_data_for_processing(isSmartRPA2024=isSmartRPA2024,
-                                               isSmartRPA2025=isSmartRPA2025,
+                                                    isSmartRPA2025=isSmartRPA2025,
                                                     isRealWorldTest=isRealWorldTest,
                                                     isActionLogger=isActionLogger,
                                                     leno_plus=leno_plus,
@@ -85,7 +88,7 @@ def run_experiment(log_name_smartRPA: str,
     ###########################################################
 
     # Find the maximum density groups based on the rule density count
-    max_density_groups_from_rules, _ = grammar_util.find_max_density_groups(log,relative_threshold=rule_density_threshold,method="percentile",percentile_threshold=0.90)
+    max_density_groups_from_rules, _ = grammar_util.find_max_density_groups(log,relative_threshold=rule_density_threshold,method="percentile",percentile_threshold=percentile_threshold)
     maximum_density_groups_df = pd.DataFrame(columns=["group","processed"])
     maximum_density_groups_df["group"] = max_density_groups_from_rules
 
@@ -196,7 +199,7 @@ def run_experiment(log_name_smartRPA: str,
     max_safety_margin = 0
     for _, row in result_df.iterrows():
         # Set the safety margin as the distance between the pattern switches & apply factor to extend based on safety concern
-        safety_margin = (int(row['upper_pattern_switch']) - int(row['lower_pattern_switch']))*saftey_margin_factor
+        safety_margin = (int(row['upper_pattern_switch']) - int(row['lower_pattern_switch']))*safety_margin_factor
         if safety_margin > max_safety_margin:
             max_safety_margin = safety_margin
         valid_indices.extend(range(max(0, int(row['lower_pattern_switch'])-safety_margin),
@@ -220,7 +223,10 @@ def run_experiment(log_name_smartRPA: str,
     if encoding_method == 1:
         if printing:
             print("Using Word2Vec based encoding for UI Log")
-        filtered_log_encoded = valmod_util.encode_word2vec(filtered_log, orderedColumnsList=hierarchy_columns, vector_size=len(hierarchy_columns)*2)
+        filtered_log_encoded = valmod_util.encode_word2vec(filtered_log, 
+                                                           orderedColumnsList=hierarchy_columns, 
+                                                           vector_size=len(hierarchy_columns)*word2vec_vector_size_factor,
+                                                           completeCorpusLog=log)
         column_identifier = 'w2v_'
     elif encoding_method == 2:
         if printing:
@@ -260,7 +266,7 @@ def run_experiment(log_name_smartRPA: str,
     l_max = max_safety_margin
 
     # Variable Length Motif Discovery >> Using the low from the GRAMMAR as l_min, Using the security margin from app switch as l_max
-    motif_sets = locomotif.apply_locomotif(filtered_columns_reduced_log, l_min=l_min, l_max=l_max, rho=0.9)
+    motif_sets = locomotif.apply_locomotif(filtered_columns_reduced_log, l_min=l_min, l_max=l_max, rho=rho_LoCoMotif)
     locomotif_discovery_time = time.time()
 
     if plotting:
@@ -351,6 +357,18 @@ def run_experiment(log_name_smartRPA: str,
 
     overlap_table = final_discovery_result["overlap_table"]         # DataFrame for inspection
     total_tp, total_fp, total_fn = final_discovery_result["tp"], final_discovery_result["fp"], final_discovery_result["fn"]
+    # "intersection_ratio": float(np.mean(intersection_ratio)) if M > 0 else 0,
+    #     "intersection_abs": float(np.mean(intersection_abs)) if M > 0 else 0,
+    #     "undercount_ratio": float(np.mean(under_ratio)) if G > 0 else 0,
+    #     "undercount_abs": float(np.mean(under_abs)) if G > 0 else 0,
+    #     "over_detection_ratio": float(np.mean(overdet_ratio)) if M > 0 else 0,
+    #     "over_detection_abs": float(np.mean(overdet_abs)) if M > 0 else 0,
+    total_intersection_ratio = final_discovery_result["intersection_ratio"]
+    total_intersection_abs = final_discovery_result["intersection_abs"] 
+    total_undercount_ratio = final_discovery_result["undercount_ratio"]
+    total_undercount_abs = final_discovery_result["undercount_abs"]
+    total_over_detection_ratio = final_discovery_result["over_detection_ratio"]
+    total_over_detection_abs = final_discovery_result["over_detection_abs"]
     if printing:
         for key, value in final_discovery_result.items():
             if key != "overlap_table" and key != "matched_pairs":
@@ -410,7 +428,7 @@ def run_experiment(log_name_smartRPA: str,
         "rule_density_threshold": rule_density_threshold,
         "app_switch_similarity_threshold": app_switch_similarity_threshold,
         "encoding_method": encoding_method,
-        "saftey_margin_factor": saftey_margin_factor,
+        "safety_margin_factor": safety_margin_factor,
         "total_time": total_end_time - total_start_time,
         "repair_time": repair_time - total_start_time,
         "density_count_time": density_count_time - repair_time,
@@ -425,6 +443,12 @@ def run_experiment(log_name_smartRPA: str,
         "total_precision": total_precision,
         "total_recall": total_recall,
         "total_f1": total_f1,
+        "total_intersection_ratio": total_intersection_ratio,
+        "total_intersection_abs": total_intersection_abs,
+        "total_undercount_ratio": total_undercount_ratio,
+        "total_undercount_abs": total_undercount_abs,
+        "total_over_detection_ratio": total_over_detection_ratio,
+        "total_over_detection_abs": total_over_detection_abs,
     }
 
     # Create a dictionary to store the flattened motif metrics
@@ -437,7 +461,7 @@ def run_experiment(log_name_smartRPA: str,
         motif_prefix = f"motif{int(motif_name)}" if isinstance(motif_name, (int, float)) and not pd.isna(motif_name) else str(motif_name).lower()
 
         # Included caseid for reference
-        for col in ['caseid', 'precision', 'recall', 'f1', 'tp', 'fp', 'fn', 'required_total']:
+        for col in ['caseid', 'average_discovered_motif_length','precision', 'recall', 'f1', 'tp', 'fp', 'fn', 'required_total']:
             new_column_name = f"{motif_prefix}-{col}"
             flattened_motif_metrics[new_column_name] = row[col]
 
