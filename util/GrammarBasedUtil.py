@@ -357,7 +357,7 @@ def find_max_density_groups(
     return groups, None
 
 
-def evaluate_motifs(max_groups, ground_truth):
+def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5):
     """
     Unified, efficient motif evaluation function.
     
@@ -369,6 +369,9 @@ def evaluate_motifs(max_groups, ground_truth):
 
     ground_truth : pd.DataFrame
         Must contain columns ["start_index", "end_index"].
+
+    overlap_threshold : float, optional
+        Minimum overlap ratio to consider a motif and ground truth as matching.
 
     Returns
     -------
@@ -433,7 +436,7 @@ def evaluate_motifs(max_groups, ground_truth):
     # ----------------------------------------------------------------------
     # 4) One-to-One Best Matching (Greedy by Overlap)
     # ----------------------------------------------------------------------
-    candidate_pairs = df[df["overlap"] > 0].sort_values("overlap", ascending=False)
+    candidate_pairs = df[df["overlap"] > overlap_threshold].sort_values("overlap", ascending=False)
 
     matched_motifs = set()
     matched_gts = set()

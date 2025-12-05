@@ -8,6 +8,7 @@ import pandas as pd
 pd.set_option("display.max_columns", None)
 import numpy as np
 import ast
+import math
 
 from gensim.models import Word2Vec
 from sklearn.preprocessing import LabelEncoder
@@ -35,8 +36,8 @@ def run_experiment(log_name_smartRPA: str,
                    app_switch_similarity_threshold: float=0.75,
                    safety_margin_factor: int=1,
                    percentile_threshold: float=0.97,
-                   word2vec_vector_size_factor: int=1,
                    rho_LoCoMotif : float=0.9,
+                   overlap_threshold: float=0.5,
                    printing: bool=False,
                    plotting: bool=False) -> pd.DataFrame:
     isSmartRPA2024 = False
@@ -69,6 +70,16 @@ def run_experiment(log_name_smartRPA: str,
     ui_log_encoded = data_for_processing["ui_log_encoded"]
     ground_truth_start_list = data_for_processing["ground_truth_start_list"]
     column_identifier = data_for_processing["column_identifier"]
+
+   # Filter out hierarchy columns that have zero unique values
+    hierarchy_columns = [
+        col for col in hierarchy_columns
+        if log[col].nunique() != 0
+    ]
+    tokens = 0
+    for col in hierarchy_columns:
+        tokens += log[col].nunique()
+    token_based_vector_size = round(math.sqrt(tokens))
 
     total_start_time = time.time()
     # Apply the Grammar Based Rule Discovery and print a sample rule tree
@@ -143,7 +154,7 @@ def run_experiment(log_name_smartRPA: str,
         plt.show()
 
         # ---- Evaluate the discovered motifs against the ground truth ----
-        stats_new = grammar_util.evaluate_motifs(maximum_density_groups_df["group"], ground_truth)
+        stats_new = grammar_util.evaluate_motifs(maximum_density_groups_df["group"], ground_truth, overlap_threshold)
 
         overlap_table = stats_new["overlap_table"]         # DataFrame for inspection
         tp, fp, fn = stats_new["tp"], stats_new["fp"], stats_new["fn"]
@@ -225,7 +236,7 @@ def run_experiment(log_name_smartRPA: str,
             print("Using Word2Vec based encoding for UI Log")
         filtered_log_encoded = valmod_util.encode_word2vec(filtered_log, 
                                                            orderedColumnsList=hierarchy_columns, 
-                                                           vector_size=len(hierarchy_columns)*word2vec_vector_size_factor,
+                                                           vector_size=token_based_vector_size,
                                                            completeCorpusLog=log)
         column_identifier = 'w2v_'
     elif encoding_method == 2:
@@ -320,7 +331,7 @@ def run_experiment(log_name_smartRPA: str,
         print("Final Evaluation of Discovered Motifs against Ground Truth:")
         print("Considering **all** discovered motifs from LOCOmotif without filtering step")
 
-        final_discovery_result = grammar_util.evaluate_motifs(result_mapped_to_original_index["original_df_range"], ground_truth)
+        final_discovery_result = grammar_util.evaluate_motifs(result_mapped_to_original_index["original_df_range"], ground_truth, overlap_threshold)
 
         overlap_table = final_discovery_result["overlap_table"]         # DataFrame for inspection
         tp, fp, fn = final_discovery_result["tp"], final_discovery_result["fp"], final_discovery_result["fn"]
@@ -352,7 +363,8 @@ def run_experiment(log_name_smartRPA: str,
     # Call evaluate_motifs with the aligned motif_df
     final_discovery_result = grammar_util.evaluate_motifs(
         motif_df["original_df_range"],
-        ground_truth
+        ground_truth,
+        overlap_threshold
     )
 
     overlap_table = final_discovery_result["overlap_table"]         # DataFrame for inspection
