@@ -1,3 +1,5 @@
+AGENTS.md
+
 logs/AWT/GitIgnore/*
 logs/Banking/GitIgnore/*
 logs/smartRPA/XLargeLogs/*
@@ -8,6 +10,11 @@ logs/smartRPA/p-50_100_experiment
 logs/smartRPA/validation/*
 discoveryResults/*
 archive/*
+logs/smartRPA/202511-update/*
+
+# Pickle files
+*.pkl
+*.pickle
 
 # --- Auto Generated Ignore ----
 # Byte-compiled / optimized / DLL files
