@@ -3,15 +3,11 @@ AGENTS.md
 logs/AWT/GitIgnore/*
 logs/Banking/GitIgnore/*
 logs/smartRPA/XLargeLogs/*
-logs/smartRPA/percentageComparison/experimentResults19052024.csv
-logs/smartRPA/percentageComparison/experimentResults22052024.csv
-logs/smartRPA/percentageComparison/Results - Experiment - Backup.csv
+logs/smartRPA/percentageComparison
 logs/smartRPA/p-50_100_experiment
-logs/smartRPA/202511-update
 logs/smartRPA/validation/*
 discoveryResults/*
 archive/*
-logs/smartRPA/202511-update/*
 
 # Pickle files
 *.pkl
