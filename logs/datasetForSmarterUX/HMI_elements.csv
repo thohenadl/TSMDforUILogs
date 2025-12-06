@@ -1,31 +1,3 @@
-IDElement,Type
-vstackMain,VStack
-heading1,Heading
-mixturePreparationAccordion,Accordion
-btn1additive,AccordionButton
-panel1additive,AccordionPanel
-btn3increaseadditive,NumberInput
-btn3decreaseadditive,NumberInput
-btn5mixture1,Button
-btn5mixture2,Button
-btn5mixture3,Button
-btn5mixture4,Button
-btn5mixture5,Button
-btn5mixture6,Button
-btn5mixture7,Button
-btn5mixture8,Button
-btn5mixture9,Button
-btn5mixture10,Button
-btn5mixture11,Button
-btn5mixture12,Button
-btn5mixture13,Button
-btn5mixture14,Button
-btn5mixture15,Button
-btn5mixture16,Button
-btn1container,AccordionButton
-panel1container,AccordionPanel
-btn2container,YesNo
-btn1drink,AccordionButton
-panel1Mixture,AccordionPanel
-gridMixture,SimpleGrid
-btn1ok,Button
+version https://git-lfs.github.com/spec/v1
+oid sha256:27cfcae930c426fa18b3f4d71315097532de5c75799ee38bf230de3a855df45e
+size 742
