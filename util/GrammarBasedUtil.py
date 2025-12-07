@@ -816,6 +816,58 @@ def plot_density_curve(log, range_low=0, range_high=-1, column_name="rule_densit
     plt.tight_layout() 
     plt.show()
 
+
+def plot_density_curve_with_index_set(log, retain_indices, column_name="rule_density_count"):
+    """
+    Plots the rule density curve and highlights specific indices/segments.
+
+    Used to highlight which parts of the log were retained after filtering.
+
+    Parameters
+    ----------  
+    log : pd.DataFrame
+        DataFrame containing the rule density column.
+    retain_indices : list of int
+        Indices to highlight on the plot.
+    column_name : str, optional
+        Name of the column containing rule density values, by default "rule_density_count"
+    """
+    plt.figure(figsize=(10, 4))
+
+    # full dataset
+    x_full = log.index
+    y_full = log[column_name]
+
+    # plot full curve in gray
+    plt.plot(x_full, y_full, color="gray", linewidth=2)
+
+    # ensure retain_indices is sorted and array-like
+    retain_indices = np.array(sorted(retain_indices))
+
+    # overlay retained points/segments in yellow
+    x_ret = log.index[retain_indices]
+    y_ret = log.iloc[retain_indices][column_name]
+
+    # Option A — scatter highlight  
+    plt.scatter(x_ret, y_ret, color="lightblue", s=20, zorder=3)
+
+    # Option B — connect only consecutive retained indices  
+    # (breaks whenever indices are not adjacent)
+    blocks = np.split(retain_indices, np.where(np.diff(retain_indices) != 1)[0] + 1)
+    for block in blocks:
+        if len(block) > 1:
+            xb = log.index[block]
+            yb = log.iloc[block][column_name]
+            plt.plot(xb, yb, color="blue", linewidth=3)
+
+    plt.title("Rule Density Across Events in Log (Retained Index Set Highlighted)")
+    plt.xlabel("Index (Event position in log)")
+    plt.ylabel("Rule Density Count")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_rule_density_distribution(log: pd.DataFrame, col_name: str = "rule_density_count"):
     counts = log[col_name].value_counts().sort_index()
 
