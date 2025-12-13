@@ -17,12 +17,22 @@ import util.GrammarBasedUtil as grammar_util
 import util.ui_stump as ui_stump
 
 import util.valmod_uihe as valmod_util
-from util.util import encoding_UiLog, read_data_for_processing
+from util.util import encoding_UiLog, read_data_for_processing, print_progress_bar
 import matplotlib as plt
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 from itertools import chain
+
+# LOCOmotif multi variate variable length motif discovery
+# Source: https://github.com/ML-KULeuven/locomotif/tree/main
+# Paper:  https://link.springer.com/article/10.1007/s10618-024-01032-z
+import locomotif.locomotif as locomotif 
+import util.locomotif_vis as visualize
+
+import warnings
+# Example: Only show a warning once globally
+warnings.filterwarnings('ignore', category=UserWarning)
 
 # LOCOmotif multi variate variable length motif discovery
 # Source: https://github.com/ML-KULeuven/locomotif/tree/main
@@ -486,3 +496,65 @@ def run_experiment(log_name_smartRPA: str,
     final_df["uiLogName"] = log_name_smartRPA
 
     return final_df
+
+
+def experiment(target_filename, rho: float=0.8):
+    print("Importing necessary Libraries finished. Start execution.")
+    validation_data_path = "../logs/smartRPA/202511-update/validationLogInformation.csv"
+    validation_data = pd.read_csv(validation_data_path)
+    validation_data.sort_values(by="logLength",inplace=True)
+    output_csv_path = "../logs/smartRPA/202511-results/" + target_filename
+
+    if os.path.exists(output_csv_path):
+        results_df_collector = pd.read_csv(output_csv_path, sep=',')
+    else:
+        results_df_collector = pd.DataFrame({"uiLogName": []})
+
+    # Iterate, run experiment, and save after each iteration
+    i = 0
+    for index, row in validation_data.iterrows():
+        log_name_smartRPA = row['uiLogName']
+        log_length = row['logLength']
+        if log_name_smartRPA in results_df_collector['uiLogName'].values:
+            print(f"Skipping already processed log: {log_name_smartRPA}")
+            continue  # Skip already processed logs
+        elif log_length > 250001:
+            # Will run in OOME error with large logs, skip to avoid long runtimes
+            print(f"Log {log_name_smartRPA} is too large ({log_length} events). Skipping processing to avoid long runtimes.")
+            df_experiment_result = pd.DataFrame([{"uiLogName": log_name_smartRPA, "error_message": "Log too large, skipped processing."}])
+        else:
+            # Run the experiment for the current log
+            try:
+                df_experiment_result = run_experiment( # Ensure run_experiment returns a single-row DataFrame with uiLogName
+                    log_name_smartRPA=log_name_smartRPA,
+                    printing=False,
+                    plotting=False,
+                    safety_margin_factor=2,
+                    rho_LoCoMotif=rho,
+                    overlap_threshold=0.8
+                )
+            except Exception as e:
+                print(f"Error processing {log_name_smartRPA}: {e}")
+                df_experiment_result = pd.DataFrame([{"uiLogName": log_name_smartRPA, "error_message": str(e)}])  # Create an empty DataFrame on error
+        
+        # Merge current validation_data row with experiment result
+        # Convert 'row' Series to a DataFrame to allow merging
+        current_row_df = pd.DataFrame([row.to_dict()])
+        current_row_df_with_results = pd.merge(current_row_df, df_experiment_result, on='uiLogName', how='left')
+
+        # Append the combined row to the collector DataFrame
+        # Use ignore_index=True as we're building it row by row
+        results_df_collector = pd.concat([results_df_collector, current_row_df_with_results], ignore_index=True)
+        
+        # Save to CSV after each iteration
+        # Use header=True only for the first save, then False for subsequent appends
+        mode = 'w'
+        header = True 
+        results_df_collector.to_csv(output_csv_path, mode=mode, header=header, index=False)
+        
+        print(f"Saved results for {log_name_smartRPA} to {output_csv_path}")
+        print_progress_bar(i + 1, len(validation_data))
+        i += 1
+
+    print("\nFinal DataFrame collected (last state before loop finished):")
+    print(results_df_collector)
