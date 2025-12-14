@@ -839,7 +839,7 @@ def plot_density_curve_with_index_set(log, retain_indices, column_name="rule_den
     y_full = log[column_name]
 
     # plot full curve in gray
-    plt.plot(x_full, y_full, color="gray", linewidth=2)
+    plt.plot(x_full, y_full, color="orange", linewidth=2)
 
     # ensure retain_indices is sorted and array-like
     retain_indices = np.array(sorted(retain_indices))
