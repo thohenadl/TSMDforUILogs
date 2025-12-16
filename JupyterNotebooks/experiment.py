@@ -516,6 +516,7 @@ def experiment(target_filename, rho: float=0.8):
         log_name_smartRPA = row['uiLogName']
         log_length = row['logLength']
         if log_name_smartRPA in results_df_collector['uiLogName'].values:
+            i += 1
             print(f"Skipping already processed log: {log_name_smartRPA}")
             continue  # Skip already processed logs
         elif log_length > 250001:
