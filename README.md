@@ -9,21 +9,19 @@ This read-me file describes the three Jupyter notebooks that are relevant for th
 
 ## The Approach
 
-![Detailed Approach Visualisation](images/Approach.png)
+![Detailed Approach Visualisation](images/approach_png.png)
 
-The approach has eight sequential steps, of which the first two steps are manual pre-processing steps and the following four steps are automatically executed:
+The approach has four sequential steps. You will first get to know them and in the section on the Jupyter Notebooks you will understand, how to use the approach and recreate our experiment:
 
-1. The recording of the user interactions into one or multiple logs, which has to be done before (semi-)automatically using tools such as [SmartRPA](https://github.com/bpm-diag/smartRPA) by Agostinelli et al. or [Tockler](http://www.irisbeerepoot.com/wp-content/uploads/2023/06/Practical-guidelines.pdf) as described by Beerepoot et al.
-2. Once the recording data is available it has to be
-    1. normalized, i.e., all action attributes inherit the same alphabet if recorded by different applications,
-    2. aligned to the [reference model of Abb and Rehse](https://www.sciencedirect.com/science/article/pii/S0306437924000449) by generating a hierarchical attribute structure,
-    3. merged into a single log file to be processed by the approach
-3. The normalized, aligned, and merged UI log is then discretizised leading to a numerical representation of the each action
-4. This numerical representation is then ordered sequentially by log and timestamp information to be a time series
-5. Once the log is a time series the matrix profil is calculated using the [Stumpy Python library](https://stumpy.readthedocs.io/en/latest/Tutorial_The_Matrix_Profile.html).
-6. Based on the matrix profil the most similar motifs, i.e., the original routines, are discovered
-7. The discovered routines are then gathered from the un-encoded UI log based on the indexes generted in step 6.
-8. Finally, [pm4py](https://pm4py.fit.fraunhofer.de/) is used to discover a directly follows graph for visualizing the discovered routine and the time series graphs are displayed as well
+1. The approach takes as an input a UI log. This log is tokenized by using Re-Pair Grammar Rules. The Grammar Rules are a tool to identify variable length motifs in time series data. Senin et al. have shown this in [GrammarViz 3.0](https://dl.acm.org/doi/abs/10.1145/3051126).
+2. Based on the so-called Grammar Cores from 1., we can filter the time series to only contain routine candidate sections from the UI log. The approach identifies app switch and process switch patterns in the UI log and extends the Grammar Cores. Afterwards, the log is reduced to only contain these extended cores.
+3. In step 3 the reduced log is encoded using Word2vec as described already by [Hohenadl 2025](https://link.springer.com/chapter/10.1007/978-3-032-02936-2_20). Afterwards, [LoCoMotif](https://github.com/ML-KULeuven/locomotif) is applied to identify variable length time series motifs in the reduced, embedded UI log.
+4. The output from step 3 is mapped against the Grammar Cores of step 1 to filter all potential motifs for real automation worthy candidates.
+
+The final result is a set of sets. Each set contains n candidates already clustered by the similarity.
+More details on every step are available in the paper.
+
+In the next section you will understand die Notebooks in the [Jupyter Notebooks folder](/JupyterNotebooks/).
 
 # Jupyter Notebooks Prepared
 
