@@ -53,10 +53,6 @@ def run_experiment(log_name_smartRPA: str,
     ###########################################################
     data_for_processing = read_data_for_processing(isSmartRPA2024=isSmartRPA2024,
                                                     isSmartRPA2025=isSmartRPA2025,
-                                                    isRealWorldTest=isRealWorldTest,
-                                                    isActionLogger=isActionLogger,
-                                                    leno_plus=leno_plus,
-                                                    isHCI=isHCI,
                                                     log_name_smartRPA=log_name_smartRPA,
                                                     encoding_method=encoding_method)
 

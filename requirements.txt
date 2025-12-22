@@ -1,7 +1,10 @@
-pm4py
-pandas
-stumpy
-numpy
-scipy
-matplotlib
-mpl-tools
+pm4py==2.7.19.3
+pandas==2.3.3
+stumpy==1.13.0
+numpy==2.3.5
+scipy==1.6.3
+matplotlib==3.10.8
+mpl-tools==0.4.1
+dtai-locomotif==0.1.0
+gensim==4.4.0
+umap-learn==0.5.9.post2
