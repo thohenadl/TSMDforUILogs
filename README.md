@@ -25,10 +25,32 @@ In the next section you will understand die Notebooks in the [Jupyter Notebooks 
 
 # Jupyter Notebooks Prepared
 
-There are 3 notebooks ready to be used.
+There are 5 notebooks ready to be used.
 
-- 00_TS-G-RD: The notebook does contain the **EX2** from the paper. Just execute the single cell in the notebook and the experiment will start running. Make sure, that the result file has a new name. The result will be stored in the [SmartRPA Folder](/logs/smartRPA/20511-results) if not updated/changed.
-- 01x_VALMOD_word2vec: The notebook has the single log execution for **EX1**. In the first cell all necessary data is imported. In the second cell, select the valid Leno et al. logs. The candidate logs are described in the cell.
-- 01x_Log_Discovery: The notebook is for you to setup everything and execute your own log for motif discovery. All necessary steps are explained in that notebook.
-- 04_GT_Comparison_Log_Creation: For **EX1** we had to generate the proper ground truth from the Leno et al. logs. The notebook lets you recreate the logs for the different approaches of [Leno et al.](10.1109/ICPM49681.2020.00031), [Agostinelli et al.](https://doi.org/10.1007/978-3-030-91431-8_5), and [Rebmann and van der Aa](https://doi.org/10.1007/978-3-031-34560-9_9).
-- 04_validationLogCreation: This log is used for **EX2** to create the validation logs. Execute the notebook the recieve a complete set of synthetic logs for testing into the specified folder.
+- [00_EX1](/JupyterNotebooks/00_EX1.ipynb): The notebook does contain the **EX2** from the paper. Just execute the single cell in the notebook and the experiment will start running. Make sure, that the result file has a new name. The result will be stored in the [SmartRPA Folder](/logs/smartRPA/20511-results) if not updated/changed.
+- [00_EX2](/JupyterNotebooks/00_EX2.ipynb): The notebook has the single log execution for **EX1**. In the first cell all necessary data is imported. In the second cell, select the valid Leno et al. logs. The candidate logs are described in the cell.
+- [01_Discovery](/JupyterNotebooks/01_Discovery.ipynb): The notebook is for you to setup everything and execute your own log for motif discovery. All necessary steps are explained in that notebook.
+- [02_Ground_Truth](/JupyterNotebooks/02_Ground_Truth.ipynb): For **EX1** we had to generate the proper ground truth from the Leno et al. logs. The notebook lets you recreate the logs for the different approaches of [Leno et al.](10.1109/ICPM49681.2020.00031), [Agostinelli et al.](https://doi.org/10.1007/978-3-030-91431-8_5), and [Rebmann and van der Aa](https://doi.org/10.1007/978-3-031-34560-9_9).
+- [02_Synthetic_Logs](/JupyterNotebooks/02_Synthetic_Logs.ipynb): This log is used for **EX2** to create the validation logs. Execute the notebook the recieve a complete set of synthetic logs for testing into the specified folder.
+
+The file "experiment.py" is a wrapper for the complete **EX2** execution.
+
+To run the notebooks, we recommend a Python 3.12 environment. Install the requirements.txt in your environment. We used Conda environments or .venv environments in VSCode.
+
+## Notebook 00_EX1
+
+In the notebook:
+1. Run the first cell to import all necessary information.
+2. Adjust the second cell with the data from the screenshot. Only use valid combinations (e.g., SRRT+ and SRRT+ Ground Truth)
+3. Start "Run All Below" in your Jupyter Notebook version
+
+![EX 1 Setup](images/EX1_Setup.png)
+
+## Notebook 00_EX2
+
+In this notebook you find the complete experiment with the synthetic data.
+Set the rho value to the similarity value you want the routines to have. We tested 0.6-0.9.
+
+The result will be stored [here](logs/smartRPA/202511-results/).
+
+![EX 2 Setup](images/EX2_Setup.png)
