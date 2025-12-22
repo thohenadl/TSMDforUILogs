@@ -25,72 +25,10 @@ In the next section you will understand die Notebooks in the [Jupyter Notebooks 
 
 # Jupyter Notebooks Prepared
 
-There are 5 notebooks ready to be used.
-Three notebooks are important for the reproduction of the main experiment: Testing the recall, precision and accuracy of the time series approach overall.
-"01" Notebook: The main notebook relevant for the experiment in the paper
-"02" Notebook: Test of different encoding approaches, some used for validation, some only for trial and error
-"03" Notebook: Discovering routines in a single UI log
-"04" Notebook: Creation of the validation dataset for the experiment in "01"
-"05" Notebooks: Support code that helps transforming an smartRPA Log into an Action Logger Log
+There are 3 notebooks ready to be used.
 
-## "01" Experiment.ipynb Notebook
-To execute the experiment and gather the insights as presented in the paper, just two steps are necessary:
-
-1. Put the correct path in the parameters
-2. Specify the list of window sizes that should be tested
-
-Afterwards, the experiment can be executed and will create a .csv file containing the parameters as defined in the publication.
-Once the file is converted into an XLSX file and the data is seperated into columns, the pivot function allows for creation of the graphs visualized in the paper.
-
-## "03" SingleLogDiscovery.ipynb Notebook
-The single log discovery notebook is setup to process a single User Interaction log that can contain a routine.
-The **first section** imports all necessary functions, including the util.util and other native Python libraries.
-The **second section** configured the parameters, which have to be set to make the approach work.
-Please specifiy your file, the columns you aligned to the reference model, and the window size parameter particulary.
-The **third section** does execute the encoding, discovery, and visualisation. Do not change anything in there to have the approach working.
-
-## "04" ValidationLogCreation.ipynb Notebook
-As described in the evaluation section of the paper, the experiment relies on a set of arteficially created user interaction logs.
-You can create your own set and follow the process of the log creation by utilizing the "validationLogCreation" notebook.
-
-<details>
-
-<summary>Setting up the parameters as in the paper</summary>
-
-To create validation data as in the publication use the following parameter setup
-
-```randomness = [1] # Length of sampling sequence, when creating the baseline log (1=> only one event inserted, 2=> sequences of 2 from all possible events inserted ...)
-motifs = [1] # how many different motifs should be inserted into the log
-occurances = [10,15,20,30,60] # Number of motif appearances in the log
-lengthMotifs = [5,10,15,20,25] # Length of the Motifs to be inserted
-percentageMotifsOverLog = [10,5,2.5,1] # Percentage representation of the Motif in the log
-shuffles = [0,10,20] # Percentage by which the inserted routine should be shuffled
-```
-
-</details>
-
-
-
-## Experiment Results
-
-The experiment results from the paper are available in the file **2025 Overall Experiment Results.xlsx**. 
-In this file you will find two sheets. The first sheet contains the collected experiment results on which the evaluation section is based on. The second sheet contains the figures presented in the evaluation section of the paper. This file contains the all collected values from the experiment as outlined in the paper:
-
-![Detailed Approach Visualisation](images/ResultTable.png)
-
-You can reproduce the experiment by executin the **experiment** notebook after you have (a) selected the synthetic validation data or (b) run the **Validation Log Creation** notebook.
-The validation data to compare the discovered result by the approach automatically is stored in the file **validationDataPercentage.csv**
-
-## Real World Experiment
-
-The real-world process was designed based on experience in small and medium size enterprises and reflects a common, yet simplified, version of an accounts payable process.
-The instruction given to the auther is stored in the **logs/Banking/** folder: [Real World Accounts Payable Instruction](logs/Banking/RealWorldProcessInstruction.pdf)
-The generated UI logs (SmartRPA/Tockler) are available in the same folder. 
-The logs are anonymized to not reflect any author data.
-
-## Additional notebooks: encodingAnalysis.ipynb & smartRPA-2-ActionLogger.ipynb
-
-These repositories were used for generic research and ideation.
-
-**encodingAnalysis.ipynb** was used to test different encoding methods and present the differences identified.
-**smartRPA-2-ActionLogger.ipynb** was used to transform the baseline data into the formats required for comparing our approach with Agostinelli et als. and Leno et als. approaches.
+- 00_TS-G-RD: The notebook does contain the **EX2** from the paper. Just execute the single cell in the notebook and the experiment will start running. Make sure, that the result file has a new name. The result will be stored in the [SmartRPA Folder](/logs/smartRPA/20511-results) if not updated/changed.
+- 01x_VALMOD_word2vec: The notebook has the single log execution for **EX1**. In the first cell all necessary data is imported. In the second cell, select the valid Leno et al. logs. The candidate logs are described in the cell.
+- 01x_Log_Discovery: The notebook is for you to setup everything and execute your own log for motif discovery. All necessary steps are explained in that notebook.
+- 04_GT_Comparison_Log_Creation: For **EX1** we had to generate the proper ground truth from the Leno et al. logs. The notebook lets you recreate the logs for the different approaches of [Leno et al.](10.1109/ICPM49681.2020.00031), [Agostinelli et al.](https://doi.org/10.1007/978-3-030-91431-8_5), and [Rebmann and van der Aa](https://doi.org/10.1007/978-3-031-34560-9_9).
+- 04_validationLogCreation: This log is used for **EX2** to create the validation logs. Execute the notebook the recieve a complete set of synthetic logs for testing into the specified folder.
