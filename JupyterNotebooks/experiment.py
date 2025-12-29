@@ -34,19 +34,13 @@ import warnings
 # Example: Only show a warning once globally
 warnings.filterwarnings('ignore', category=UserWarning)
 
-# LOCOmotif multi variate variable length motif discovery
-# Source: https://github.com/ML-KULeuven/locomotif/tree/main
-# Paper:  https://link.springer.com/article/10.1007/s10618-024-01032-z
-import locomotif.locomotif as locomotif 
-import util.locomotif_vis as visualize
-
 def run_experiment(log_name_smartRPA: str, 
-                   encoding_method: int=1, 
+                   encoding_method: int=1,
                    rule_density_threshold: float=0.8, 
                    app_switch_similarity_threshold: float=0.75,
-                   safety_margin_factor: int=1,
-                   percentile_threshold: float=0.97,
-                   rho_LoCoMotif : float=0.9,
+                   safety_margin_factor: int=2,
+                   percentile_threshold: float=0.90,
+                   rho_LoCoMotif : float=0.7,
                    overlap_threshold: float=0.5,
                    printing: bool=False,
                    plotting: bool=False) -> pd.DataFrame:
@@ -63,8 +57,7 @@ def run_experiment(log_name_smartRPA: str,
     ###########################################################
     data_for_processing = read_data_for_processing(isSmartRPA2024=isSmartRPA2024,
                                                     isSmartRPA2025=isSmartRPA2025,
-                                                    log_name_smartRPA=log_name_smartRPA,
-                                                    encoding_method=encoding_method)
+                                                    log_name_smartRPA=log_name_smartRPA)
 
     # Unpack the returned dictionary
     hierarchy_list = data_for_processing["hierarchy_list"]
@@ -160,7 +153,7 @@ def run_experiment(log_name_smartRPA: str,
         plt.show()
 
         # ---- Evaluate the discovered motifs against the ground truth ----
-        stats_new = grammar_util.evaluate_motifs(maximum_density_groups_df["group"], ground_truth, overlap_threshold)
+        stats_new = grammar_util.evaluate_motifs(maximum_density_groups_df["group"], ground_truth, overlap_threshold=3, overlap_type="absolute")
 
         overlap_table = stats_new["overlap_table"]         # DataFrame for inspection
         tp, fp, fn = stats_new["tp"], stats_new["fp"], stats_new["fn"]
@@ -370,7 +363,8 @@ def run_experiment(log_name_smartRPA: str,
     final_discovery_result = grammar_util.evaluate_motifs(
         motif_df["original_df_range"],
         ground_truth,
-        overlap_threshold
+        overlap_threshold=overlap_threshold,
+        overlap_type="ratio"
     )
 
     overlap_table = final_discovery_result["overlap_table"]         # DataFrame for inspection
@@ -494,7 +488,7 @@ def run_experiment(log_name_smartRPA: str,
     return final_df
 
 
-def experiment(target_filename, rho: float=0.8):
+def experiment(target_filename, rho: float=0.8, log_limit: int=250001, safety_margin_factor: int=2):
     print("Importing necessary Libraries finished. Start execution.")
     validation_data_path = "../logs/smartRPA/202511-update/validationLogInformation.csv"
     validation_data = pd.read_csv(validation_data_path)
@@ -515,7 +509,7 @@ def experiment(target_filename, rho: float=0.8):
             i += 1
             print(f"Skipping already processed log: {log_name_smartRPA}")
             continue  # Skip already processed logs
-        elif log_length > 250001:
+        elif log_length > log_limit:
             # Will run in OOME error with large logs, skip to avoid long runtimes
             print(f"Log {log_name_smartRPA} is too large ({log_length} events). Skipping processing to avoid long runtimes.")
             df_experiment_result = pd.DataFrame([{"uiLogName": log_name_smartRPA, "error_message": "Log too large, skipped processing."}])
@@ -526,7 +520,7 @@ def experiment(target_filename, rho: float=0.8):
                     log_name_smartRPA=log_name_smartRPA,
                     printing=False,
                     plotting=False,
-                    safety_margin_factor=2,
+                    safety_margin_factor=safety_margin_factor,
                     rho_LoCoMotif=rho,
                     overlap_threshold=0.8
                 )

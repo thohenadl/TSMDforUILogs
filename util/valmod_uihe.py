@@ -188,29 +188,29 @@ def get_id(row, tuples, columns):
 
 # ---- Motif Discovery ----
 
-def discover_motifs(uiLog: pd.DataFrame, window_size: int=25, normalize=True, self_exclude: bool=False):
-    """
-    Args:
-      uiLog (DataFrame): Encoded uiLog containing the columns in text and integer format
-      window_size (int): Window Size
-      normalize : bool, default True
-        When set to ``True``, this z-normalizes subsequences prior to computing
-        distances. Otherwise, this function gets re-routed to its complementary
-        non-normalized equivalent set in the ``@core.non_normalized`` function
-        decorator.
-    Returns:
-      stumpy tm_matrix
-    """
-    starting_row = 0
-    ending_row = len(uiLog)-1
-    #Extract ids and rows
-    if self_exclude:
-       from stumpy import config
-       config.STUMPY_EXCL_ZONE_DENOM = 1  # The exclusion zone is i ± window_size
-    event_series = uiLog.loc[starting_row:ending_row,'tuple:id'].values.astype(float)
-    tm_matrix = stumpy.stump(T_A=event_series, m=window_size, normalize=normalize)
+# def discover_motifs(uiLog: pd.DataFrame, window_size: int=25, normalize=True, self_exclude: bool=False):
+#     """
+#     Args:
+#       uiLog (DataFrame): Encoded uiLog containing the columns in text and integer format
+#       window_size (int): Window Size
+#       normalize : bool, default True
+#         When set to ``True``, this z-normalizes subsequences prior to computing
+#         distances. Otherwise, this function gets re-routed to its complementary
+#         non-normalized equivalent set in the ``@core.non_normalized`` function
+#         decorator.
+#     Returns:
+#       stumpy tm_matrix
+#     """
+#     starting_row = 0
+#     ending_row = len(uiLog)-1
+#     #Extract ids and rows
+#     if self_exclude:
+#        from stumpy import config
+#        config.STUMPY_EXCL_ZONE_DENOM = 1  # The exclusion zone is i ± window_size
+#     event_series = uiLog.loc[starting_row:ending_row,'tuple:id'].values.astype(float)
+#     tm_matrix = stumpy.stump(T_A=event_series, m=window_size, normalize=normalize)
 
-    return tm_matrix, event_series
+#     return tm_matrix, event_series
 
 def reduceLogToDiscovered(dataframe: pd.DataFrame, topMotifIndex: list, windowSize: int):
     """
@@ -937,6 +937,80 @@ def encode_word2vec(uiLog: pd.DataFrame,
     vectors = ui_tokens.apply(
         lambda token: model.wv[token] if token in model.wv else [0.0] * vector_size
     )
+    vector_df = pd.DataFrame(vectors.tolist(), index=df.index)
+    vector_df.columns = [f"w2v_{i}" for i in range(vector_size)]
+
+    return pd.concat([df, vector_df], axis=1)
+
+
+#### New Word2Vec Encoding - Attribute as Word, Row as Sentence, Log as Corpus ----
+
+def encode_word2vec_row_as_sentence(uiLog: pd.DataFrame,
+                                    orderedColumnsList: list,
+                                    vector_size: int = 32,
+                                    window: int = 5,
+                                    min_count: int = 1,
+                                    completeCorpusLog: pd.DataFrame = None) -> pd.DataFrame:
+    """
+    Treats every row as a sentence and every cell (attribute) as a word.
+    The final vector for a row is the average of its attribute vectors.
+    """
+    
+    # Select training source
+    train_df = completeCorpusLog if completeCorpusLog is not None else uiLog
+    df = uiLog.copy()
+
+    # --- 1. Tokenization ---
+    # Convert dataframe columns to list of lists (sentences of words)
+    # e.g., [['User1', 'Click', 'Btn'], ['User2', 'Type', 'Input']]
+    train_sentences = (
+        train_df[orderedColumnsList]
+        .astype(str)
+        .values
+        .tolist()
+    )
+    
+    # Tokens for inference 
+    ui_sentences = (
+        df[orderedColumnsList]
+        .astype(str)
+        .values
+        .tolist()
+    )
+
+    # --- 2. Train Word2Vec ---
+    # Model learns relationships between attributes (e.g., 'Error_500' appears near 'Server_Crash')
+    model = Word2Vec(
+        sentences=train_sentences,
+        vector_size=vector_size,
+        window=window,
+        min_count=min_count,
+        workers=4,
+        sg=1  # Skip-gram usually handles infrequent words better than CBOW
+    )
+
+    # --- 3. Inference (Mean Pooling) ---
+    # We need to turn a list of words (a row) into a single vector.
+    # Standard approach: Average the vectors of all words in the row.
+    
+    def get_row_embedding(row_tokens):
+        # Filter for words actually present in the vocabulary to avoid errors
+        valid_vectors = [model.wv[token] for token in row_tokens if token in model.wv]
+        
+        if not valid_vectors:
+            # If row contains only OOV words, return zero vector
+            return np.zeros(vector_size)
+        
+        # Stack vectors and calculate mean along axis 0
+        return np.mean(valid_vectors, axis=0)
+
+    # Apply to every row in the target dataframe
+    # Note: apply on a Series of lists is faster than apply on DataFrame rows
+    # We wrap the list-of-lists into a Series to use .apply
+    temp_series = pd.Series(ui_sentences, index=df.index)
+    vectors = temp_series.apply(get_row_embedding)
+
+    # --- 4. Formatting Output ---
     vector_df = pd.DataFrame(vectors.tolist(), index=df.index)
     vector_df.columns = [f"w2v_{i}" for i in range(vector_size)]
 

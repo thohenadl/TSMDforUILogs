@@ -823,7 +823,7 @@ def read_data_for_processing(isSmartRPA2024: bool = False,
                              leno_gt_file_name: str = "202511_SR_RT_plus_extended_ground_truth.csv",
                              isHCI: bool = False,
                              log_name_smartRPA: str = "LenLog_1_1_10_25_5_5000.csv",
-                             encoding_method: int = 1):
+                             folder_path_smartRPA2025: str = "../logs/smartRPA/202511-update/"):
   # Create Standard Based data for both logs, so that all down stream measures look the same
 
   # 1. Dataframe mit Start Index, Length, End_Index
@@ -893,7 +893,6 @@ def read_data_for_processing(isSmartRPA2024: bool = False,
           
     elif isSmartRPA2025:
       # ---- Define folder path and relevant files ----
-      folder_path_smartRPA2025 = "../logs/smartRPA/202511-update/"
       grundTruthOverallData = "validationLogInformation.csv"
       # ---- Getting the relevant files from the folder and sorting them into different lists for processing ----
       percentageLogs = []
@@ -1002,20 +1001,6 @@ def read_data_for_processing(isSmartRPA2024: bool = False,
   else:
       raise ValueError("No valid log selected. Please select one of the available options to TRUE.")
 
-  if encoding_method == 1:
-      print("Using Word2Vec based encoding for UI Log")
-      ui_log_encoded = valmod_util.encode_word2vec(file, orderedColumnsList=hierarchy_columns, vector_size=len(hierarchy_columns))
-      column_identifier = 'w2v_'
-  elif encoding_method == 2:
-      print("Using Hierarchical based encoding for UI Log")
-      ui_log_encoded = encoding_UiLog(file,orderedColumnsList=hierarchy_columns,encoding=1)
-      column_identifier = 'tuple:id'
-  elif encoding_method == 3:
-      print("Using Co-Occurrance based encoding for UI Log")
-      ui_log_encoded = encoding_UiLog(file,orderedColumnsList=hierarchy_columns,encoding=2)
-      column_identifier = 'tuple:id'
-  else:
-      raise ValueError("Invalid encoding method selected. Choose 1, 2, or 3.")
 
   log = grammar_util.symbolize_UILog(file, hierarchy_columns)
 
@@ -1028,9 +1013,7 @@ def read_data_for_processing(isSmartRPA2024: bool = False,
       "file": file,
       "log": log,
       "ground_truth": ground_truth,
-      "ui_log_encoded": ui_log_encoded,
-      "ground_truth_start_list": ground_truth_start_list,
-      "column_identifier": column_identifier
+      "ground_truth_start_list": ground_truth_start_list
    }
 
 

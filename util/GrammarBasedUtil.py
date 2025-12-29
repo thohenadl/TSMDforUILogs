@@ -357,7 +357,7 @@ def find_max_density_groups(
     return groups, None
 
 
-def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5):
+def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5, overlap_type="ratio"):
     """
     Unified, efficient motif evaluation function.
     
@@ -372,6 +372,11 @@ def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5):
 
     overlap_threshold : float, optional
         Minimum overlap ratio to consider a motif and ground truth as matching.
+
+    overlap_type : str, optional
+        Type of overlap to use for matching ("ratio" or "absolute").
+        Ratio: overlap / motif_length
+        Absolute: overlap event count
 
     Returns
     -------
@@ -436,7 +441,12 @@ def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5):
     # ----------------------------------------------------------------------
     # 4) One-to-One Best Matching (Greedy by Overlap)
     # ----------------------------------------------------------------------
-    candidate_pairs = df[df["overlap"] > overlap_threshold].sort_values("overlap", ascending=False)
+    if overlap_type == "absolute":
+        candidate_pairs = df[df["overlap"] > overlap_threshold].sort_values("overlap", ascending=False)
+    elif overlap_type == "ratio":
+        candidate_pairs = df[df["overlap_gt_ratio"] > overlap_threshold].sort_values("overlap", ascending=False)
+    else:
+        raise ValueError("Invalid overlap_type. Choose 'ratio' or 'absolute'.")
 
     matched_motifs = set()
     matched_gts = set()
@@ -507,6 +517,299 @@ def mark_overlaps_grammer_locomotif_indexed(df1: pd.DataFrame, df2: pd.DataFrame
     df1 = df1.copy()
     df1["grammer_motif_match"] = matches
     return df1
+
+import pandas as pd
+from collections import defaultdict
+
+def analyze_grammar_motif_overlaps(df1: pd.DataFrame, 
+                                   df2: pd.DataFrame, 
+                                   col_motif: str = "original_df_range", 
+                                   col_core: str = "group") -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Analyzes the overlap between Motifs (df1) and Grammar Cores (df2).
+    
+    Returns:
+        (df1_enriched, df2_enriched)
+    """
+    
+    # --- 1. Pre-processing & Indexing ---
+    # Convert columns to sets for O(1) lookups and set math
+    # Assuming the columns contain lists or ranges of integers
+    motifs = [set(x) for x in df1[col_motif]]
+    cores = [set(x) for x in df2[col_core]]
+    
+    # Map Core ID -> Core Size (for calculating coverage %)
+    core_sizes = {i: len(c) for i, c in enumerate(cores)}
+    
+    # Inverted Index: Map every atomic element to the Grammar Core IDs that contain it.
+    # Element -> {Core_ID_0, Core_ID_5, ...}
+    element_to_core_map = defaultdict(set)
+    for core_idx, core_set in enumerate(cores):
+        for val in core_set:
+            element_to_core_map[val].add(core_idx)
+
+    # Inverted Index: Map every atomic element to Motif IDs (for the reverse check)
+    element_to_motif_map = defaultdict(set)
+    for motif_idx, motif_set in enumerate(motifs):
+        for val in motif_set:
+            element_to_motif_map[val].add(motif_idx)
+
+    # --- 2. Analyze DF1 (Motifs) Perspective ---
+    # Questions: Overlaps how many? Covers completely? Overlap count?
+    
+    df1_results = {
+        "touched_core_ids": [],         # List of Core IDs this motif touches
+        "overlap_counts": [],           # Dict {CoreID: IntersectionSize}
+        "fully_contained_cores": [],    # List of Core IDs fully inside this motif
+        "overlap_status": []            # String summary
+    }
+
+    for motif_set in motifs:
+        # Find which cores are involved with this motif
+        touched_cores_indices = set()
+        for val in motif_set:
+            if val in element_to_core_map:
+                touched_cores_indices.update(element_to_core_map[val])
+        
+        # Calculate intersection stats for each touched core
+        # {Core_ID: Intersection_Size}
+        current_overlap_counts = defaultdict(int)
+        
+        # We re-iterate the motif set only filtering for relevant cores
+        # (This is faster than doing set.intersection(core) for all cores)
+        for val in motif_set:
+            if val in element_to_core_map:
+                for core_idx in element_to_core_map[val]:
+                    current_overlap_counts[core_idx] += 1
+        
+        # Determine relationship types
+        fully_contained = []
+        for core_idx, overlap_size in current_overlap_counts.items():
+            # If overlap size == total size of the core, the core is fully inside the motif
+            if overlap_size == core_sizes[core_idx]:
+                fully_contained.append(core_idx)
+
+        # Store results
+        df1_results["touched_core_ids"].append(list(current_overlap_counts.keys()))
+        df1_results["overlap_counts"].append(dict(current_overlap_counts))
+        df1_results["fully_contained_cores"].append(fully_contained)
+        
+        # Summary Status
+        if not current_overlap_counts:
+            status = "No Overlap"
+        elif len(fully_contained) > 0:
+            status = f"Contains {len(fully_contained)} Cores Full"
+        else:
+            status = f"Partial Overlap with {len(current_overlap_counts)} Cores"
+        df1_results["overlap_status"].append(status)
+
+    # Apply to DF1
+    df1_out = df1.copy()
+    for col, values in df1_results.items():
+        df1_out[col] = values
+
+
+    # --- 3. Analyze DF2 (Grammar Cores) Perspective ---
+    # Questions: Is it contained in a motif? Covered partly?
+    
+    df2_results = {
+        "touching_motif_ids": [],
+        "is_fully_contained": [],    # Boolean
+        "contained_by_motif_id": [], # If fully contained, which motif?
+        "overlap_details": []        # String description
+    }
+
+    for core_idx, core_set in enumerate(cores):
+        # Similar logic, just reversed
+        touched_motifs_indices = set()
+        for val in core_set:
+            if val in element_to_motif_map:
+                touched_motifs_indices.update(element_to_motif_map[val])
+        
+        # Calculate intersections
+        current_motif_overlaps = defaultdict(int)
+        for val in core_set:
+            if val in element_to_motif_map:
+                for motif_idx in element_to_motif_map[val]:
+                    current_motif_overlaps[motif_idx] += 1
+        
+        # Check if this core is fully contained by any motif
+        fully_contained_in = []
+        core_len = len(core_set)
+        
+        for motif_idx, overlap_size in current_motif_overlaps.items():
+            # If intersection == core_len, the core is fully inside that motif
+            if overlap_size == core_len:
+                fully_contained_in.append(motif_idx)
+        
+        df2_results["touching_motif_ids"].append(list(current_motif_overlaps.keys()))
+        df2_results["is_fully_contained"].append(len(fully_contained_in) > 0)
+        df2_results["contained_by_motif_id"].append(fully_contained_in if fully_contained_in else None)
+        
+        if not current_motif_overlaps:
+            df2_results["overlap_details"].append("Isolated")
+        elif len(fully_contained_in) > 0:
+            df2_results["overlap_details"].append(f"Fully inside Motif {fully_contained_in}")
+        else:
+            df2_results["overlap_details"].append(f"Partial overlap with {len(current_motif_overlaps)} motifs")
+
+    # Apply to DF2
+    df2_out = df2.copy()
+    for col, values in df2_results.items():
+        df2_out[col] = values
+
+    return df1_out, df2_out
+
+
+def extend_motifs_anchor_logic(df_motifs: pd.DataFrame, 
+                               df_cores: pd.DataFrame, 
+                               col_motif_range: str = "original_df_range", 
+                               col_core_range: str = "group") -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Extends Motifs using Grammar Cores based on "Anchor & Extend" logic.
+    
+    Includes 'grammar_match' column: True if the motif (or any part of the super-motif)
+    had an intersection with a Grammar Core.
+    """
+
+    # --- 1. Helper: Parse Ranges ---
+    def get_bounds(range_obj):
+        if isinstance(range_obj, (range, list, set, tuple)):
+            if len(range_obj) == 0: return None
+            return min(range_obj), max(range_obj)
+        return None
+
+    # Prepare readable dictionaries
+    motifs_meta = {}
+    for idx, row in df_motifs.iterrows():
+        s, e = get_bounds(row[col_motif_range])
+        motifs_meta[idx] = {
+            'start': s, 'end': e, 
+            'set': set(row[col_motif_range]), 
+            'id': idx
+        }
+
+    cores_meta = {}
+    for idx, row in df_cores.iterrows():
+        s, e = get_bounds(row[col_core_range])
+        cores_meta[idx] = {
+            'start': s, 'end': e, 
+            'set': set(row[col_core_range]), 
+            'id': idx
+        }
+
+    # --- 2. Calculate All Intersections ---
+    core_to_motifs_map = defaultdict(list)
+    motifs_touched_by_cores = set()  # Track which motifs have overlap
+    
+    for c_id, c_data in cores_meta.items():
+        c_set = c_data['set']
+        
+        for m_id, m_data in motifs_meta.items():
+            if c_data['end'] < m_data['start'] or c_data['start'] > m_data['end']:
+                continue
+            
+            intersection = len(c_set.intersection(m_data['set']))
+            if intersection > 0:
+                core_to_motifs_map[c_id].append({
+                    'motif_id': m_id,
+                    'overlap_count': intersection,
+                    'motif_start': m_data['start'],
+                    'motif_end': m_data['end']
+                })
+                motifs_touched_by_cores.add(m_id)
+
+    # --- 3. Processing Logic (Merging & Extension) ---
+    df_cores_out = df_cores.copy()
+
+    motif_groups = {
+        m_id: {'start': m['start'], 'end': m['end'], 'members': [m_id]} 
+        for m_id, m in motifs_meta.items()
+    }
+    motif_id_to_group_id = {m: m for m in motifs_meta}
+    decision_map = {} 
+
+    for c_id, overlaps in core_to_motifs_map.items():
+        overlaps.sort(key=lambda x: x['motif_start'])
+        decision_log = []
+        
+        # Scenario A: Single Overlap
+        if len(overlaps) == 1:
+            m_id = overlaps[0]['motif_id']
+            g_id = motif_id_to_group_id[m_id]
+            c_start, c_end = cores_meta[c_id]['start'], cores_meta[c_id]['end']
+            
+            motif_groups[g_id]['start'] = min(motif_groups[g_id]['start'], c_start)
+            motif_groups[g_id]['end'] = max(motif_groups[g_id]['end'], c_end)
+            decision_log.append(f"Extended Motif {m_id}")
+
+        # Scenario B: Multi-Motif Overlap
+        else:
+            winner = max(overlaps, key=lambda x: x['overlap_count'])
+            winner_id = winner['motif_id']
+            merged_any = False
+            
+            for i in range(len(overlaps) - 1):
+                m1 = overlaps[i]
+                m2 = overlaps[i+1]
+                gap = m2['motif_start'] - m1['motif_end'] - 1
+                
+                if gap <= 2:
+                    g1 = motif_id_to_group_id[m1['motif_id']]
+                    g2 = motif_id_to_group_id[m2['motif_id']]
+                    
+                    if g1 != g2:
+                        motif_groups[g1]['members'].extend(motif_groups[g2]['members'])
+                        motif_groups[g1]['start'] = min(motif_groups[g1]['start'], motif_groups[g2]['start'])
+                        motif_groups[g1]['end'] = max(motif_groups[g1]['end'], motif_groups[g2]['end'])
+                        
+                        for member in motif_groups[g2]['members']:
+                            motif_id_to_group_id[member] = g1
+                        del motif_groups[g2]
+                        decision_log.append(f"Merged {m1['motif_id']} & {m2['motif_id']} (Gap {gap})")
+                    merged_any = True
+
+            target_group_id = motif_id_to_group_id[winner_id]
+            c_start, c_end = cores_meta[c_id]['start'], cores_meta[c_id]['end']
+            motif_groups[target_group_id]['start'] = min(motif_groups[target_group_id]['start'], c_start)
+            motif_groups[target_group_id]['end'] = max(motif_groups[target_group_id]['end'], c_end)
+            
+            if not merged_any:
+                decision_log.append(f"Gap > 2. Winner: {winner_id}")
+
+        decision_map[c_id] = "; ".join(decision_log)
+
+    # --- 4. Final Construction ---
+    df_cores_out["extension_decision"] = df_cores_out.index.map(lambda x: decision_map.get(x, "No Overlap"))
+
+    final_rows = []
+    processed_groups = set()
+    
+    for m_id, group_id in motif_id_to_group_id.items():
+        if group_id in processed_groups:
+            continue
+        
+        group_data = motif_groups[group_id]
+        if group_data['start'] is None: continue
+
+        new_range = list(range(group_data['start'], group_data['end'] + 1))
+        
+        # Check if ANY member of this group was touched by a core
+        is_grammar_match = any(m in motifs_touched_by_cores for m in group_data['members'])
+        
+        final_rows.append({
+            "super_motif_id": group_id,
+            "composed_of_motifs": group_data['members'],
+            "extended_range": new_range,
+            "start_index": group_data['start'],
+            "end_index": group_data['end'],
+            "length": len(new_range),
+            "grammar_match": is_grammar_match  # <--- NEW COLUMN
+        })
+        processed_groups.add(group_id)
+
+    df_extended = pd.DataFrame(final_rows)
+    return df_extended, df_cores_out
 
 # Util in research: May be delated for publishing
 
