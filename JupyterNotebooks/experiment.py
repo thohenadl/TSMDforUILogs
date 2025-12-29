@@ -66,8 +66,6 @@ def run_experiment(log_name_smartRPA: str,
     file = data_for_processing["file"]
     log = data_for_processing["log"]
     ground_truth = data_for_processing["ground_truth"]
-    ui_log_encoded = data_for_processing["ui_log_encoded"]
-    ground_truth_start_list = data_for_processing["ground_truth_start_list"]
     column_identifier = data_for_processing["column_identifier"]
 
    # Filter out hierarchy columns that have zero unique values
@@ -322,40 +320,16 @@ def run_experiment(log_name_smartRPA: str,
     result_mapped_to_original_index = grammar_util.mark_overlaps_grammer_locomotif_indexed(result_mapped_to_original_index, max_groups_df, col_df1="original_df_range", col_df2="group")
     total_end_time = time.time()
 
-    #########################################
-    #### Discovery before Grammer Filter ####
-    #########################################
-
-    if plotting:
-        print("Final Evaluation of Discovered Motifs against Ground Truth:")
-        print("Considering **all** discovered motifs from LOCOmotif without filtering step")
-
-        final_discovery_result = grammar_util.evaluate_motifs(result_mapped_to_original_index["original_df_range"], ground_truth, overlap_threshold)
-
-        overlap_table = final_discovery_result["overlap_table"]         # DataFrame for inspection
-        tp, fp, fn = final_discovery_result["tp"], final_discovery_result["fp"], final_discovery_result["fn"]
-        for key, value in final_discovery_result.items():
-            if key != "overlap_table" and key != "matched_pairs":
-                print(f"{key}: {value:.3f}")
-
-        precision = tp / (tp + fp) if (tp + fp) else 0
-        recall = tp / (tp + fn) if (tp + fn) else 0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
-
-        print(f"\nPrecision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}")
-
-        print("\nFinal Evaluation of Discovered Motifs against Ground Truth:")
-        print("Considering only those motifs that were also identified by Grammar Based Discovery")
+    extended_motifs, resulting_cores = grammar_util.extend_motifs_anchor_logic(result_mapped_to_original_index, max_groups_df, col_motif_range="original_df_range", col_core_range="ext_group_list")
+    # Reduce extended motifs to only those that matched grammar cores & have length >= 5
+    extended_grammar_motif_matches = extended_motifs[extended_motifs['grammar_match'] == True]
+    motif_df = extended_grammar_motif_matches[extended_grammar_motif_matches["length"]>=5].copy()
 
     ########################################
     #### Discovery after Grammer Filter ####
     ########################################
 
     # Filter the result to only include clusters with grammar motif matches
-
-    motif_df = result_mapped_to_original_index[
-        result_mapped_to_original_index["grammer_motif_match"] == True
-    ].copy()
 
     motif_df = motif_df.reset_index(drop=True)   # index = motif_id = 0..M-1
 
