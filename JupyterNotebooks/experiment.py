@@ -66,7 +66,6 @@ def run_experiment(log_name_smartRPA: str,
     file = data_for_processing["file"]
     log = data_for_processing["log"]
     ground_truth = data_for_processing["ground_truth"]
-    column_identifier = data_for_processing["column_identifier"]
 
    # Filter out hierarchy columns that have zero unique values
     hierarchy_columns = [
@@ -218,6 +217,9 @@ def run_experiment(log_name_smartRPA: str,
         print(f"Total Included Range Length: {range_sum} of {len(log)}")
         print(f"Percentage of Log Included: {range_sum/len(log)*100:.2f}%")
 
+    # Generate Extended with all margins as list as well
+    max_groups_df['ext_group_list'] = max_groups_df.apply(lambda row: list(range(row['lower_pattern_switch'], row['upper_pattern_switch'] + 1)), axis=1)
+
     log_path_extension_time = time.time()
 
     # filter log to include only those indices
@@ -299,108 +301,72 @@ def run_experiment(log_name_smartRPA: str,
                 length_of_discovered_motif = end_of_discovered_motif - start_of_discovered_motif
                 motif_original_start_index = filtered_log.loc[start_of_discovered_motif, "original_index"]
                 # print(f"Motif Start Index: {start}, Motif Length: {end}")
-                # print(f"Motif Original Start Index in Full Log: {motif_original_start_index}")
                 try:
-                    
                     block = pd.DataFrame({
                         "original_df_range": [list(range(motif_original_start_index, motif_original_start_index+length_of_discovered_motif))],
                         "cluster_id": [cluster_set[0]],
                         "original_df_case_ids": [log.loc[motif_original_start_index:motif_original_start_index+length_of_discovered_motif, "case:concept:name"].tolist()],
+                        "motif_length": length_of_discovered_motif
                     })
                 except KeyError as ke:
                     block = pd.DataFrame({
                         "original_df_range": [list(range(motif_original_start_index, motif_original_start_index+length_of_discovered_motif))],
                         "cluster_id": [cluster_set[0]],
                         "original_df_case_ids": [log.loc[motif_original_start_index:motif_original_start_index+length_of_discovered_motif, "caseid"].tolist()],
+                        "motif_length": length_of_discovered_motif
                     })
                 blocks.append(block)
-    
+
     result_mapped_to_original_index = pd.concat(blocks, ignore_index=True)
 
-    result_mapped_to_original_index = grammar_util.mark_overlaps_grammer_locomotif_indexed(result_mapped_to_original_index, max_groups_df, col_df1="original_df_range", col_df2="group")
+    result_mapped_to_original_index = grammar_util.mark_overlaps_grammer_locomotif_indexed(result_mapped_to_original_index, max_groups_df, col_df1="original_df_range", col_df2="ext_group_list")
     total_end_time = time.time()
 
     extended_motifs, resulting_cores = grammar_util.extend_motifs_anchor_logic(result_mapped_to_original_index, max_groups_df, col_motif_range="original_df_range", col_core_range="ext_group_list")
+
     # Reduce extended motifs to only those that matched grammar cores & have length >= 5
     extended_grammar_motif_matches = extended_motifs[extended_motifs['grammar_match'] == True]
-    motif_df = extended_grammar_motif_matches[extended_grammar_motif_matches["length"]>=5].copy()
-
-    ########################################
-    #### Discovery after Grammer Filter ####
-    ########################################
-
-    # Filter the result to only include clusters with grammar motif matches
-
-    motif_df = motif_df.reset_index(drop=True)   # index = motif_id = 0..M-1
-
-    # Call evaluate_motifs with the aligned motif_df
-    final_discovery_result = grammar_util.evaluate_motifs(
-        motif_df["original_df_range"],
-        ground_truth,
-        overlap_threshold=overlap_threshold,
-        overlap_type="ratio"
-    )
-
-    overlap_table = final_discovery_result["overlap_table"]         # DataFrame for inspection
-    total_tp, total_fp, total_fn = final_discovery_result["tp"], final_discovery_result["fp"], final_discovery_result["fn"]
-    # "intersection_ratio": float(np.mean(intersection_ratio)) if M > 0 else 0,
-    #     "intersection_abs": float(np.mean(intersection_abs)) if M > 0 else 0,
-    #     "undercount_ratio": float(np.mean(under_ratio)) if G > 0 else 0,
-    #     "undercount_abs": float(np.mean(under_abs)) if G > 0 else 0,
-    #     "over_detection_ratio": float(np.mean(overdet_ratio)) if M > 0 else 0,
-    #     "over_detection_abs": float(np.mean(overdet_abs)) if M > 0 else 0,
-    total_intersection_ratio = final_discovery_result["intersection_ratio"]
-    total_intersection_abs = final_discovery_result["intersection_abs"] 
-    total_undercount_ratio = final_discovery_result["undercount_ratio"]
-    total_undercount_abs = final_discovery_result["undercount_abs"]
-    total_over_detection_ratio = final_discovery_result["over_detection_ratio"]
-    total_over_detection_abs = final_discovery_result["over_detection_abs"]
+    extended_grammar_motif_matches = extended_grammar_motif_matches[extended_grammar_motif_matches["length"]>=5]
+    motif_df_ext = extended_grammar_motif_matches.reset_index(drop=True)   # index = motif_id = 0..M-1
     if printing:
-        for key, value in final_discovery_result.items():
+        print("\nFinal Evaluation of Extended Motifs against Ground Truth:")
+        print("Considering **extended** discovered motifs from LOCOmotif without filtering step")
+
+    final_discovery_result_core_extended = grammar_util.evaluate_motifs(extended_grammar_motif_matches["extended_range"], ground_truth, overlap_threshold=overlap_threshold, overlap_type="ratio")
+
+    overlap_table = final_discovery_result_core_extended["overlap_table"]         # DataFrame for inspection
+    total_tp, total_fp, total_fn = final_discovery_result_core_extended["tp"], final_discovery_result_core_extended["fp"], final_discovery_result_core_extended["fn"]
+    if printing:
+        for key, value in final_discovery_result_core_extended.items():
             if key != "overlap_table" and key != "matched_pairs":
                 print(f"{key}: {value:.3f}")
-    
+
     total_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) else 0
     total_recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) else 0
     total_f1 = 2 * total_precision * total_recall / (total_precision + total_recall) if (total_precision + total_recall) else 0
 
+    total_intersection_ratio = final_discovery_result_core_extended["intersection_ratio"]
+    total_intersection_abs = final_discovery_result_core_extended["intersection_abs"] 
+    total_undercount_ratio = final_discovery_result_core_extended["undercount_ratio"]
+    total_undercount_abs = final_discovery_result_core_extended["undercount_abs"]
+    total_over_detection_ratio = final_discovery_result_core_extended["over_detection_ratio"]
+    total_over_detection_abs = final_discovery_result_core_extended["over_detection_abs"]
+
     if printing:
-        print(f"Totals >> Precision: {total_precision:.3f}, Recall: {total_recall:.3f}, F1: {total_f1:.3f}")
-
-
+        print(f"\nPrecision: {total_precision:.3f}, Recall: {total_recall:.3f}, F1: {total_f1:.3f}")
     # ---- Plotting the results ---- 
-
     if plotting:
         plt.figure(figsize=(10, 4))
         plt.plot(log.index, log["rule_density_count"], linewidth=2)
-        for g in result_mapped_to_original_index[result_mapped_to_original_index["grammer_motif_match"] == True]["original_df_range"].to_list():
+        for g in extended_grammar_motif_matches["extended_range"].to_list():
             plt.axvspan(g[0], g[-1], color="red", alpha=0.3)
-        plt.title("Rule Density Curve — Highlighted Max Density Regions")
+        plt.title("Final Discovery result: Grammer-Motif Matched Routines")
         plt.xlabel("Index (Event position in log)")
         plt.ylabel("Rule Density Count")
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.show()
 
-    cluster_based_evaluation_df = grammar_util.join_discovery_with_ground_truth(final_discovery_result, ground_truth, motif_df)
-    if isSmartRPA2025: 
-    # For Smart RPA 2025, we have case IDs in the format "motif[n]_caseid" in the ground_truth, which is the motif id in the Leno logs
-        cluster_based_evaluation_df["motif"] = cluster_based_evaluation_df["motif_number"]
-    motif_res = grammar_util.motif_level_metrics(cluster_based_evaluation_df)
-    motif_purity = grammar_util.purity_per_two_columns(cluster_based_evaluation_df, cluster_by_col="motif", purity_col_name="cluster_id")
-    if printing:
-        print("Motif Level Metrics:")
-        print(motif_res)
-        print(motif_purity)
-        print("\nCluster Level Metrics:")
-    cluster_res = grammar_util.cluster_level_metrics(cluster_based_evaluation_df)
-    cluster_purity = grammar_util.purity_per_two_columns(cluster_based_evaluation_df, cluster_by_col="cluster_id", purity_col_name="motif")
-    if printing:
-        print(cluster_res)
-        print(cluster_purity)
-
-    # The times that are necessary to execute the discovery steps
-    # Works only if executed in sequence as above and with ">> Run All" cells 
     if printing:
         print("\n--- Timing Summary (in seconds) ---")
         print(f"Total Execution Time: {total_end_time - total_start_time:.2f} seconds")
@@ -422,7 +388,7 @@ def run_experiment(log_name_smartRPA: str,
         "app_switch_mining_time": log_path_extension_time - app_switch_mining_time,
         "locomotif_discovery_time": locomotif_discovery_time - log_path_extension_time,
         "filtered_log_length": len(filtered_log),
-        "number_of_discovered_motifs": len(motif_df),
+        "number_of_discovered_motifs": len(motif_df_ext),
         "total_tp": total_tp,
         "total_fp": total_fp,
         "total_fn": total_fn,
@@ -437,22 +403,40 @@ def run_experiment(log_name_smartRPA: str,
         "total_over_detection_abs": total_over_detection_abs,
     }
 
+    #####################################################
+    ##### Commented Out as Cluster_ID not Available #####
+    #####################################################
+
+    #### motif_df_ext does not have the cluster_id info directly ####
+
+     # ---- Calculating the results per Cluster ----
+    # cluster_based_evaluation_df = grammar_util.join_discovery_with_ground_truth(final_discovery_result_core_extended, ground_truth, motif_df_ext)
+    # if isSmartRPA2025: 
+    #     # For Smart RPA 2025, we have case IDs in the format "motif[n]_caseid" in the ground_truth, which is the motif id in the Leno logs
+    #     cluster_based_evaluation_df["motif"] = cluster_based_evaluation_df["motif_number"]
+    # motif_res = grammar_util.motif_level_metrics(cluster_based_evaluation_df)
+    # motif_purity = grammar_util.purity_per_two_columns(cluster_based_evaluation_df, cluster_by_col="motif", purity_col_name="cluster_id")
+
+    # cluster_res = grammar_util.cluster_level_metrics(cluster_based_evaluation_df)
+    # cluster_purity = grammar_util.purity_per_two_columns(cluster_based_evaluation_df, cluster_by_col="cluster_id", purity_col_name="motif")
+
     # Create a dictionary to store the flattened motif metrics
-    flattened_motif_metrics = {}
+    # flattened_motif_metrics = {}
 
-    for index, row in motif_res.iterrows():
-        motif_name = row['motif']
-        # If the motif name is an integer, format it as "motifX", otherwise use its string value directly
-        # This handles both numeric motifs and "UNMAPPED"
-        motif_prefix = f"motif{int(motif_name)}" if isinstance(motif_name, (int, float)) and not pd.isna(motif_name) else str(motif_name).lower()
+    # for index, row in motif_res.iterrows():
+    #     motif_name = row['motif']
+    #     # If the motif name is an integer, format it as "motifX", otherwise use its string value directly
+    #     # This handles both numeric motifs and "UNMAPPED"
+    #     motif_prefix = f"motif{int(motif_name)}" if isinstance(motif_name, (int, float)) and not pd.isna(motif_name) else str(motif_name).lower()
 
-        # Included caseid for reference
-        for col in ['caseid', 'average_discovered_motif_length','precision', 'recall', 'f1', 'tp', 'fp', 'fn', 'required_total']:
-            new_column_name = f"{motif_prefix}-{col}"
-            flattened_motif_metrics[new_column_name] = row[col]
+    #     # Included caseid for reference
+    #     for col in ['caseid', 'average_discovered_motif_length','precision', 'recall', 'f1', 'tp', 'fp', 'fn', 'required_total']:
+    #         new_column_name = f"{motif_prefix}-{col}"
+    #         flattened_motif_metrics[new_column_name] = row[col]
 
     # Combine the base results and flattened motif metrics
-    final_result_dict = {**base_result, **flattened_motif_metrics}
+    # final_result_dict = {**base_result, **flattened_motif_metrics}
+    final_result_dict = {**base_result}
 
     # Convert the combined dictionary to a DataFrame
     # We create a DataFrame from a single row dictionary
