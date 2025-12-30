@@ -17,6 +17,8 @@ from stumpy import config
 import stumpy
 import ast
 
+from datetime import datetime
+
 # ---- Tuple Generation for Time Series Data Creation ----
 def createDict(someSet) -> dict:
     theDict = {}
@@ -1202,6 +1204,7 @@ def print_progress_bar(current, total, bar_length=40):
     fraction = current / total
     filled = int(bar_length * fraction)
     bar = "█" * filled + "-" * (bar_length - filled)
-    print(f"\rProgress: |{bar}| {current}/{total} ({fraction*100:.1f}%)", end="")
+    now = datetime.now()
+    print(f"\rProgress: |{bar}| {current}/{total} ({fraction*100:.1f}% @ {now.time()})\n", end="")
 
 
