@@ -323,6 +323,7 @@ def run_experiment(log_name_smartRPA: str,
     total_end_time = time.time()
 
     extended_motifs, resulting_cores = grammar_util.extend_motifs_anchor_logic(result_mapped_to_original_index, max_groups_df, col_motif_range="original_df_range", col_core_range="ext_group_list")
+    extended_motifs = grammar_util.merge_final_overlaps(extended_motifs)
 
     # Reduce extended motifs to only those that matched grammar cores & have length >= 5
     extended_grammar_motif_matches = extended_motifs[extended_motifs['grammar_match'] == True]

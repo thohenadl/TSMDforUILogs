@@ -664,12 +664,11 @@ def analyze_grammar_motif_overlaps(df1: pd.DataFrame,
 def extend_motifs_anchor_logic(df_motifs: pd.DataFrame, 
                                df_cores: pd.DataFrame, 
                                col_motif_range: str = "original_df_range", 
-                               col_core_range: str = "group") -> tuple[pd.DataFrame, pd.DataFrame]:
+                               col_core_range: str = "group",
+                               filter_only_matches: bool = True) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Extends Motifs using Grammar Cores based on "Anchor & Extend" logic.
-    
-    Includes 'grammar_match' column: True if the motif (or any part of the super-motif)
-    had an intersection with a Grammar Core.
+    Handles unhashable metadata (like lists) gracefully.
     """
 
     # --- 1. Helper: Parse Ranges ---
@@ -679,7 +678,10 @@ def extend_motifs_anchor_logic(df_motifs: pd.DataFrame,
             return min(range_obj), max(range_obj)
         return None
 
-    # Prepare readable dictionaries
+    # Metadata columns to preserve
+    metadata_cols = [c for c in df_motifs.columns if c != col_motif_range]
+
+    # Initialize Indices
     motifs_meta = {}
     for idx, row in df_motifs.iterrows():
         s, e = get_bounds(row[col_motif_range])
@@ -700,11 +702,11 @@ def extend_motifs_anchor_logic(df_motifs: pd.DataFrame,
 
     # --- 2. Calculate All Intersections ---
     core_to_motifs_map = defaultdict(list)
-    motifs_touched_by_cores = set()  # Track which motifs have overlap
+    motifs_touched_by_cores = set()
     
     for c_id, c_data in cores_meta.items():
         c_set = c_data['set']
-        
+        # Optimization: Filter by bounds before set intersection
         for m_id, m_data in motifs_meta.items():
             if c_data['end'] < m_data['start'] or c_data['start'] > m_data['end']:
                 continue
@@ -722,6 +724,7 @@ def extend_motifs_anchor_logic(df_motifs: pd.DataFrame,
     # --- 3. Processing Logic (Merging & Extension) ---
     df_cores_out = df_cores.copy()
 
+    # Initialize Groups (Initially, every motif is its own group)
     motif_groups = {
         m_id: {'start': m['start'], 'end': m['end'], 'members': [m_id]} 
         for m_id, m in motifs_meta.items()
@@ -743,7 +746,7 @@ def extend_motifs_anchor_logic(df_motifs: pd.DataFrame,
             motif_groups[g_id]['end'] = max(motif_groups[g_id]['end'], c_end)
             decision_log.append(f"Extended Motif {m_id}")
 
-        # Scenario B: Multi-Motif Overlap
+        # Scenario B: Multi-Overlap
         else:
             winner = max(overlaps, key=lambda x: x['overlap_count'])
             winner_id = winner['motif_id']
@@ -794,22 +797,114 @@ def extend_motifs_anchor_logic(df_motifs: pd.DataFrame,
 
         new_range = list(range(group_data['start'], group_data['end'] + 1))
         
-        # Check if ANY member of this group was touched by a core
+        # Original range debugging info
+        original_indices = set()
+        for member in group_data['members']:
+            original_indices.update(motifs_meta[member]['set'])
+        original_range_sorted = sorted(list(original_indices))
+
+        # Check Match Status
         is_grammar_match = any(m in motifs_touched_by_cores for m in group_data['members'])
         
-        final_rows.append({
+        if filter_only_matches and not is_grammar_match:
+            continue
+
+        # --- Metadata Aggregation (Fixed for Unhashable Types) ---
+        member_rows = df_motifs.loc[group_data['members']]
+        aggregated_meta = {}
+        for col in metadata_cols:
+            try:
+                # Fast path for hashable types (strings, ints, floats)
+                unique_vals = member_rows[col].unique()
+                val_to_store = unique_vals[0] if len(unique_vals) == 1 else list(unique_vals)
+            except TypeError:
+                # Fallback path for unhashable types (lists)
+                # Convert list to tuple to allow 'unique' check
+                try:
+                    temp_series = member_rows[col].apply(tuple)
+                    unique_tuples = temp_series.unique()
+                    if len(unique_tuples) == 1:
+                        # If all lists are identical, take the original list from the first row
+                        val_to_store = member_rows[col].iloc[0]
+                    else:
+                        # If lists differ, store all of them
+                        val_to_store = member_rows[col].tolist()
+                except Exception:
+                    # Absolute fallback if conversion fails: just store list of all values
+                    val_to_store = member_rows[col].tolist()
+            
+            aggregated_meta[col] = val_to_store
+
+        row_dict = {
             "super_motif_id": group_id,
             "composed_of_motifs": group_data['members'],
             "extended_range": new_range,
+            "original_range_union": original_range_sorted,
             "start_index": group_data['start'],
             "end_index": group_data['end'],
             "length": len(new_range),
-            "grammar_match": is_grammar_match  # <--- NEW COLUMN
-        })
+            "grammar_match": is_grammar_match,
+            "grammar_motif_match": is_grammar_match
+        }
+        row_dict.update(aggregated_meta)
+        final_rows.append(row_dict)
         processed_groups.add(group_id)
 
     df_extended = pd.DataFrame(final_rows)
+    
+    if not df_extended.empty:
+        base_cols = ["super_motif_id", "grammar_motif_match", "start_index", "end_index", 
+                     "length", "extended_range", "original_range_union", "composed_of_motifs"]
+        final_cols = base_cols + [c for c in df_extended.columns if c not in base_cols]
+        df_extended = df_extended[final_cols]
+    
     return df_extended, df_cores_out
+
+def merge_final_overlaps(df_extended: pd.DataFrame) -> pd.DataFrame:
+    """
+    Takes the extended motifs and merges any that now overlap due to extension.
+    Prioritizes retaining metadata from the 'larger' or 'first' motif.
+    """
+    if df_extended.empty:
+        return df_extended
+
+    # 1. Sort by start index
+    # We work on a copy to avoid SettingWithCopy warnings
+    df = df_extended.sort_values("start_index").copy()
+    
+    merged_rows = []
+    
+    # Initialize with the first row
+    current = df.iloc[0].to_dict()
+
+    for _, next_row in df.iloc[1:].iterrows():
+        # Check overlap: Start of Next <= End of Current
+        if next_row['start_index'] <= current['end_index']:
+            # --- MERGE ---
+            # Extend the end
+            current['end_index'] = max(current['end_index'], next_row['end_index'])
+            
+            # Update range list
+            current['extended_range'] = list(range(current['start_index'], current['end_index'] + 1))
+            current['length'] = len(current['extended_range'])
+            
+            # Merge Metadata (Lists)
+            current['composed_of_motifs'] = list(set(current['composed_of_motifs'] + next_row['composed_of_motifs']))
+            
+            # Boolean logic: If either had a grammar match, the merged one does too
+            current['grammar_match'] = current['grammar_match'] or next_row['grammar_match']
+            current['grammar_motif_match'] = current['grammar_motif_match'] or next_row['grammar_motif_match']
+            
+        else:
+            # --- NO OVERLAP ---
+            # Save current and start a new one
+            merged_rows.append(current)
+            current = next_row.to_dict()
+
+    # Append the last one
+    merged_rows.append(current)
+    
+    return pd.DataFrame(merged_rows)
 
 # Util in research: May be delated for publishing
 
