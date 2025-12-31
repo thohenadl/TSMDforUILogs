@@ -37,11 +37,11 @@ warnings.filterwarnings('ignore', category=UserWarning)
 def run_experiment(log_name_smartRPA: str, 
                    encoding_method: int=1,
                    rule_density_threshold: float=0.8, 
-                   app_switch_similarity_threshold: float=0.75,
+                   app_switch_similarity_threshold: float=0.8,
                    safety_margin_factor: int=2,
                    percentile_threshold: float=0.90,
                    rho_LoCoMotif : float=0.7,
-                   overlap_threshold: float=0.5,
+                   overlap_threshold: float=0.8,
                    printing: bool=False,
                    plotting: bool=False) -> pd.DataFrame:
     isSmartRPA2024 = False
@@ -232,11 +232,20 @@ def run_experiment(log_name_smartRPA: str,
     # Encode the filtered log
     if encoding_method == 1:
         if printing:
-            print("Using Word2Vec based encoding for UI Log")
+            print("Using Word2Vec Detailed (Attribute as Word, Row as Sentence, Log as Corpus) based encoding for UI Log with vector size:", token_based_vector_size)
         filtered_log_encoded = valmod_util.encode_word2vec(filtered_log, 
                                                            orderedColumnsList=hierarchy_columns, 
                                                            vector_size=token_based_vector_size,
                                                            completeCorpusLog=log)
+        column_identifier = 'w2v_'
+    elif encoding_method == 0:
+        if printing:
+            print("Using Word2Vec Sentence based encoding for UI Log")
+        filtered_log_encoded = valmod_util.encode_word2vec_row_as_sentence(uiLog=filtered_log, 
+                                                       orderedColumnsList=hierarchy_columns, 
+                                                       window=len(hierarchy_columns),
+                                                       vector_size=token_based_vector_size,
+                                                       completeCorpusLog=log)
         column_identifier = 'w2v_'
     elif encoding_method == 2:
         if printing:
@@ -447,7 +456,7 @@ def run_experiment(log_name_smartRPA: str,
     return final_df
 
 
-def experiment(target_filename, rho: float=0.8, log_limit: int=250001, safety_margin_factor: int=2):
+def experiment(target_filename, rho: float=0.8, log_limit: int=250001, safety_margin_factor: int=2, encoding_method: int=1):
     print("Importing necessary Libraries finished. Start execution.")
     validation_data_path = "../logs/smartRPA/202511-update/validationLogInformation.csv"
     validation_data = pd.read_csv(validation_data_path)
@@ -477,6 +486,7 @@ def experiment(target_filename, rho: float=0.8, log_limit: int=250001, safety_ma
             try:
                 df_experiment_result = run_experiment( # Ensure run_experiment returns a single-row DataFrame with uiLogName
                     log_name_smartRPA=log_name_smartRPA,
+                    encoding_method=encoding_method,
                     printing=False,
                     plotting=False,
                     safety_margin_factor=safety_margin_factor,
