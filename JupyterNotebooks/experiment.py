@@ -456,7 +456,11 @@ def run_experiment(log_name_smartRPA: str,
     return final_df
 
 
-def experiment(target_filename, rho: float=0.8, log_limit: int=250001, safety_margin_factor: int=2, encoding_method: int=1):
+def experiment(target_filename, rho: float=0.8, 
+               log_limit: int=250001, 
+               safety_margin_factor: int=2, 
+               encoding_method: int=1,
+               core_threshold: float=0.9):
     print("Importing necessary Libraries finished. Start execution.")
     validation_data_path = "../logs/smartRPA/202511-update/validationLogInformation.csv"
     validation_data = pd.read_csv(validation_data_path)
@@ -491,7 +495,8 @@ def experiment(target_filename, rho: float=0.8, log_limit: int=250001, safety_ma
                     plotting=False,
                     safety_margin_factor=safety_margin_factor,
                     rho_LoCoMotif=rho,
-                    overlap_threshold=0.8
+                    overlap_threshold=0.8,
+                    percentile_threshold=core_threshold
                 )
             except Exception as e:
                 print(f"Error processing {log_name_smartRPA}: {e}")
