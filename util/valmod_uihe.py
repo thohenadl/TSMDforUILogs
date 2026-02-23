@@ -930,7 +930,9 @@ def encode_word2vec(uiLog: pd.DataFrame,
         vector_size=vector_size,
         window=window,
         min_count=min_count,
-        sg=1
+        sg=1,
+        seed=42,
+        workers=1
     )
 
     # Map vectors for uiLog only
@@ -985,7 +987,8 @@ def encode_word2vec_row_as_sentence(uiLog: pd.DataFrame,
         vector_size=vector_size,
         window=window,
         min_count=min_count,
-        workers=4,
+        workers=1,
+        seed=42,
         sg=1  # Skip-gram usually handles infrequent words better than CBOW
     )
 

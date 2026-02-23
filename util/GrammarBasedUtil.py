@@ -442,9 +442,13 @@ def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5, overlap_typ
     # 4) One-to-One Best Matching (Greedy by Overlap)
     # ----------------------------------------------------------------------
     if overlap_type == "absolute":
-        candidate_pairs = df[df["overlap"] > overlap_threshold].sort_values("overlap", ascending=False)
+        candidate_pairs = df[df["overlap"] > overlap_threshold].sort_values(
+            ["overlap", "motif_id", "gt_id"], ascending=[False, True, True], kind="mergesort"
+        )
     elif overlap_type == "ratio":
-        candidate_pairs = df[df["overlap_gt_ratio"] > overlap_threshold].sort_values("overlap", ascending=False)
+        candidate_pairs = df[df["overlap_gt_ratio"] > overlap_threshold].sort_values(
+            ["overlap", "motif_id", "gt_id"], ascending=[False, True, True], kind="mergesort"
+        )
     else:
         raise ValueError("Invalid overlap_type. Choose 'ratio' or 'absolute'.")
 
@@ -748,7 +752,7 @@ def extend_motifs_anchor_logic(df_motifs: pd.DataFrame,
 
         # Scenario B: Multi-Overlap
         else:
-            winner = max(overlaps, key=lambda x: x['overlap_count'])
+            winner = max(overlaps, key=lambda x: (x['overlap_count'], -x['motif_start'], -x['motif_id']))
             winner_id = winner['motif_id']
             merged_any = False
             
@@ -816,7 +820,13 @@ def extend_motifs_anchor_logic(df_motifs: pd.DataFrame,
             try:
                 # Fast path for hashable types (strings, ints, floats)
                 unique_vals = member_rows[col].unique()
-                val_to_store = unique_vals[0] if len(unique_vals) == 1 else list(unique_vals)
+                if len(unique_vals) == 1:
+                    val_to_store = unique_vals[0]
+                else:
+                    try:
+                        val_to_store = sorted(unique_vals)
+                    except TypeError:
+                        val_to_store = list(unique_vals)
             except TypeError:
                 # Fallback path for unhashable types (lists)
                 # Convert list to tuple to allow 'unique' check
@@ -870,7 +880,9 @@ def merge_final_overlaps(df_extended: pd.DataFrame) -> pd.DataFrame:
 
     # 1. Sort by start index
     # We work on a copy to avoid SettingWithCopy warnings
-    df = df_extended.sort_values("start_index").copy()
+    df = df_extended.sort_values(
+        ["start_index", "end_index"], ascending=[True, True], kind="mergesort"
+    ).copy()
     
     merged_rows = []
     
@@ -889,7 +901,7 @@ def merge_final_overlaps(df_extended: pd.DataFrame) -> pd.DataFrame:
             current['length'] = len(current['extended_range'])
             
             # Merge Metadata (Lists)
-            current['composed_of_motifs'] = list(set(current['composed_of_motifs'] + next_row['composed_of_motifs']))
+            current['composed_of_motifs'] = sorted(set(current['composed_of_motifs'] + next_row['composed_of_motifs']))
             
             # Boolean logic: If either had a grammar match, the merged one does too
             current['grammar_match'] = current['grammar_match'] or next_row['grammar_match']
