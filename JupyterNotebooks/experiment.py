@@ -230,15 +230,7 @@ def run_experiment(log_name_smartRPA: str,
     filtered_log.reset_index(drop=True, inplace=True)
 
     # Encode the filtered log
-    if encoding_method == 1:
-        if printing:
-            print("Using Word2Vec Detailed (Attribute as Word, Row as Sentence, Log as Corpus) based encoding for UI Log with vector size:", token_based_vector_size)
-        filtered_log_encoded = valmod_util.encode_word2vec(filtered_log, 
-                                                           orderedColumnsList=hierarchy_columns, 
-                                                           vector_size=token_based_vector_size,
-                                                           completeCorpusLog=log)
-        column_identifier = 'w2v_'
-    elif encoding_method == 0:
+    if encoding_method == 0:
         if printing:
             print("Using Word2Vec Sentence based encoding for UI Log")
         filtered_log_encoded = valmod_util.encode_word2vec_row_as_sentence(uiLog=filtered_log, 
@@ -246,6 +238,14 @@ def run_experiment(log_name_smartRPA: str,
                                                        window=len(hierarchy_columns),
                                                        vector_size=token_based_vector_size,
                                                        completeCorpusLog=log)
+        column_identifier = 'w2v_'
+    elif encoding_method == 1:
+        if printing:
+            print("Using Word2Vec Detailed (Attribute as Word, Row as Sentence, Log as Corpus) based encoding for UI Log with vector size:", token_based_vector_size)
+        filtered_log_encoded = valmod_util.encode_word2vec(filtered_log, 
+                                                           orderedColumnsList=hierarchy_columns, 
+                                                           vector_size=token_based_vector_size,
+                                                           completeCorpusLog=log)
         column_identifier = 'w2v_'
     elif encoding_method == 2:
         if printing:
@@ -645,15 +645,26 @@ def run_variance_experiment(log_name_smartRPA: str,
     filtered_log.reset_index(drop=True, inplace=True)
 
 
-    filtered_log_encoded = valmod_util.encode_word2vec(filtered_log, 
-                                                        orderedColumnsList=hierarchy_columns, 
-                                                        vector_size=token_based_vector_size,
-                                                        completeCorpusLog=log)
+    if encoding_method == 0:
+        if printing:
+            print("Using Word2Vec Sentence based encoding for UI Log")
+        filtered_log_encoded = valmod_util.encode_word2vec_row_as_sentence(uiLog=filtered_log, 
+                                                       orderedColumnsList=hierarchy_columns, 
+                                                       window=len(hierarchy_columns),
+                                                       vector_size=token_based_vector_size,
+                                                       completeCorpusLog=log)
+    elif encoding_method == 1:
+        if printing:
+            print("Using Word2Vec Detailed (Attribute as Word, Row as Sentence, Log as Corpus) based encoding for UI Log with vector size:", token_based_vector_size)
+        filtered_log_encoded = valmod_util.encode_word2vec(filtered_log, 
+                                                           orderedColumnsList=hierarchy_columns, 
+                                                           vector_size=token_based_vector_size,
+                                                           completeCorpusLog=log)
+
     
     # ------------------------------------------------------------------
     # 0. Grammer Varianze Calculation
     # ------------------------------------------------------------------
-
     grammer_variance = np.var(log["rule_density_count"], ddof=1)
 
     # ------------------------------------------------------------------
