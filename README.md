@@ -17,15 +17,15 @@ The paper is structured around two experimental cases and four sub-questions:
 | Sub-question | Focus | Notebook |
 |---|---|---|
 | **SQ1** | Does the approach effectively discover routines in high-noise UI logs? | `00_EX1.ipynb` |
-| **SQ2** | What influence factors impact the effectiveness of the TS-GRD approach performance? | `00_EX2.ipynb` + `00_EX1.ipynb` §3 |
-| **SQ3** | To what extent can internal log metrics serve as unsupervised proxies to estimate routine discovery success in the absence of ground-truth labels? | `00_EX1.ipynb` §3 |
+| **SQ2** | What influence factors impact the effectiveness of the TS-GRD approach performance? | `00_EX1.ipynb` Section 1 |
+| **SQ3** | To what extent can internal log metrics serve as unsupervised proxies to estimate routine discovery success in the absence of ground-truth labels? | `00_EX1.ipynb` Section 2 |
 
 ### Experimental Case 2 (EX2) — Comparison with State-of-the-Art
 > *How does the approach compare to existing RPM approaches?*
 
 | Sub-question | Focus | Notebook |
 |---|---|---|
-| **SQ4** | How does TS-GRD perform compared to existing SOTA approaches in no-inter-noise and inter-noise settings? | `02_Ground_Truth.ipynb` (baseline generation) |
+| **SQ4** | How does TS-GRD perform compared to existing SOTA approaches in no-inter-noise and inter-noise settings? | `00_EX2.ipynb` |
 
 ---
 
@@ -52,12 +52,11 @@ The result is a set of clusters, each containing *n* candidate routine occurrenc
 ```
 TSMDforUILogs/
 ├── JupyterNotebooks/
-│   ├── 00_EX1.ipynb          # EX1: single-log evaluation (SQ1 + SQ3)
-│   ├── 00_EX2.ipynb          # EX1 batch experiment for SQ2 influence factors
-│   ├── 01_Discovery.ipynb    # Template: run the approach on your own log
-│   ├── 02_Ground_Truth.ipynb # Generate Leno ground truth + SOTA baseline logs
-│   ├── 02_Synthetic_Logs.ipynb # Generate synthetic validation log suite
-│   ├── evaluation.ipynb      # Additional evaluation utilities
+│   ├── 00_EX1.ipynb          # EX1: batch experiment for influence factors (SQ1, SQ2, and SQ3)
+│   ├── 00_EX2.ipynb          # EX2: single log experiment for SOTA comparison (SQ4)
+│   ├── 02_EX1_Synthetic_Logs_Generator.ipynb # Generate synthetic validation log suite
+│   ├── 02_EX2_Log_Generator.ipynb # Generate Leno ground truth + SOTA baseline logs
+│   ├── 03_EX1_Evaluation_4_TeX.ipynb      # Additional evaluation utilities for Overleaf
 │   └── experiment.py         # Batch experiment wrapper (called by 00_EX2.ipynb)
 ├── util/                     # Core algorithm modules
 ├── logs/
@@ -65,7 +64,6 @@ TSMDforUILogs/
 │   └── smartRPA/
 │       ├── 202511-update/    # Synthetic validation log metadata
 │       └── 202511-results/   # Experiment output CSVs (written at runtime)
-├── archive/                  # Earlier experimental notebooks (not part of pipeline)
 └── requirements.txt
 ```
 
@@ -85,30 +83,9 @@ All notebooks are in `JupyterNotebooks/`. They use relative paths (`../logs/`) s
 
 ## Notebooks
 
-### `00_EX1.ipynb` — EX1: Single-Log Evaluation (SQ1, SQ3)
+### `00_EX1.ipynb` — EX2 Batch Experiment: Influence Factors (SQ1, SQ2, SQ3 data)
 
-Runs the full four-step pipeline on one of four Leno benchmark logs and evaluates the result against ground truth. Also contains **Section 3** (variance correlation analysis) which answers SQ3 using the batch results produced by `00_EX2.ipynb`.
-
-**Step 1 — Select a case** (set `CASE` in the *Case Selection* cell):
-
-| `CASE` value | Arrangement | Noise | Answers |
-|---|---|---|---|
-| `"SR_RT_Plus"` | Sequential — all Student Record traces before Reimbursement | None | SQ1 baseline |
-| `"SR_RT_parallel"` | Parallel — Student Record and Reimbursement interleaved | None | SQ1 baseline |
-| `"SR_RT_plus_extended"` | Sequential | Intra-motif (50 random events per case) | SQ1 noise robustness |
-| `"SR_RT_parallel_extended"` | Parallel | Intra-motif (50 random events per case) | SQ1 noise robustness |
-
-**Step 2 — Run all cells** (**Run All**).
-
-**Step 3 — Section 3 (SQ3):** requires `00_EX2.ipynb` to have been run first to produce the variance and validation result CSVs.
-
-**Outputs:** Precision / Recall / F1 per evaluation view, overlap distribution, grammar variance scatter, execution time breakdown, correlation table (Section 3).
-
----
-
-### `00_EX2.ipynb` — EX1 Batch Experiment: Influence Factors (SQ2, SQ3 data)
-
-Runs the pipeline over the full synthetic log suite across four `rho` values (`0.6`, `0.7`, `0.8`, `0.9`) to identify which log properties drive discovery performance. Also runs the variance experiment to collect the data analysed in `00_EX1.ipynb` Section 3.
+Runs the pipeline over the full synthetic log suite across four `rho` values (`0.6`, `0.7`, `0.8`, `0.9`) to identify which log properties drive discovery performance.  Also contains **Section 2.2** (variance correlation analysis) which answers SQ3 using the batch results produced by **Section 2.1**.
 
 **Run four times — once per `rho` value** (set `rho` in the first code cell, then **Run All**):
 
@@ -136,36 +113,55 @@ Results are written **incrementally** after each log — the run is **resumable*
 
 ---
 
-### `02_Ground_Truth.ipynb` — Ground Truth and SOTA Baseline Generation
+### `00_EX2.ipynb` — EX2: Single-Log Evaluation (SQ4)
+
+Runs the full four-step pipeline on one of four Leno benchmark logs and evaluates the result against ground truth. 
+
+**Step 1 — Select a case** (set `CASE` in the *Case Selection* cell):
+
+| `CASE` value | Arrangement | Noise | Answers |
+|---|---|---|---|
+| `"SR_RT_Plus"` | Sequential — all Student Record traces before Reimbursement | None | SQ1 baseline |
+| `"SR_RT_parallel"` | Parallel — Student Record and Reimbursement interleaved | None | SQ1 baseline |
+| `"SR_RT_plus_extended"` | Sequential | Intra-motif (50 random events per case) | SQ1 noise robustness |
+| `"SR_RT_parallel_extended"` | Parallel | Intra-motif (50 random events per case) | SQ1 noise robustness |
+
+**Step 2 — Run all cells** (**Run All**).
+
+**Outputs:** Precision / Recall / F1 per evaluation view, overlap distribution, grammar variance scatter, execution time breakdown.
+
+---
+
+### `02_EX1_Synthetic_Logs_Generation.ipynb` — Synthetic Log Generation
+
+Creates the full synthetic validation log suite used by `00_EX1.ipynb`. Run once, if no data is prepared, to populate `logs/smartRPA/202511-update/` before executing `00_EX1.ipynb`.
+
+---
+
+### `02_EX2_Log_Generator.ipynb` — Ground Truth and SOTA Baseline Generation
 
 Generates the Leno benchmark logs with case IDs, ground truth files, and the baseline comparison data for SQ4. Recreates logs for the approaches of [Leno et al.](https://doi.org/10.1109/ICPM49681.2020.00031), [Agostinelli et al.](https://doi.org/10.1007/978-3-030-91431-8_5), and [Rebmann and van der Aa](https://doi.org/10.1007/978-3-031-34560-9_9).
 
-Run once to populate `logs/Leno/` before executing `00_EX1.ipynb`.
+Run once to populate `logs/Leno/` before executing `00_EX2.ipynb`.
 
----
+### `03_EX1_Evaluation_4_TeX.ipynb` — Automatic LaTeX Variable Generation
 
-### `02_Synthetic_Logs.ipynb` — Synthetic Log Generation
-
-Creates the full synthetic validation log suite used by `00_EX2.ipynb`. Run once to populate `logs/smartRPA/202511-update/` before executing `00_EX2.ipynb`.
-
----
-
-### `01_Discovery.ipynb` — Custom Log Discovery
-
-Template notebook for applying TS-GRD to your own UI log. All steps are explained inline.
+To inspect the results of EX1 for SQ1 and SQ2, we created a notebook that can be executed on the files in `logs/smartRPA/202511-results/`.
+It generates an inspection table based on the response variables.
+Additionally, a list of LaTeX ready variables for copy and pasting into the TeX document in Overleaf is prepared for simplification of the writing process.
 
 ---
 
 ## Recommended Execution Order
 
+In the unlikely case all data got lost on the way, we recommend the following execution order.
+
 ```
-02_Ground_Truth.ipynb       ← generates Leno logs + ground truths
-02_Synthetic_Logs.ipynb     ← generates synthetic validation suite
+02_EX1_Synthetic_Logs_Generator.ipynb     ← generates synthetic validation suite
+02_EX2_Log_Generator.ipynb       ← generates Leno logs + ground truths
          ↓
-00_EX1.ipynb  (Sections 1–2)   ← SQ1: effectiveness on Leno benchmark
-00_EX2.ipynb                   ← SQ2: influence factors (run for rho 0.6–0.9)
-         ↓
-00_EX1.ipynb  (Section 3)      ← SQ3: variance as unsupervised proxy
+00_EX1.ipynb                   ← SQ1-3: influence factors (run for rho 0.6–0.9)
+00_EX2.ipynb  (Sections 1–2)   ← SQ4: effectiveness on Leno benchmark and SOTA comparison
 ```
 
 ---
