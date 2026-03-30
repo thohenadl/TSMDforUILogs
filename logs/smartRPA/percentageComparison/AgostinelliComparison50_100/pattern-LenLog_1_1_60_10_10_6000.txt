@@ -1,1 +1,0 @@
-sheetCalculate closeWindow newWorkbook SlideSelectionChanged slideshowEnd worksheetTableUpdated savePresentation newPresentationSlide slideshowEnd editCellSheet 

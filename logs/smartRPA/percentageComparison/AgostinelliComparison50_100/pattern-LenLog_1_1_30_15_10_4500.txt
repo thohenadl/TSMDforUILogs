@@ -1,1 +1,0 @@
-newTab unpinnedTab navigateTo navigateTo navigateTo unpinnedTab newWindow disableBrowserExtension submit uninstallBrowserExtension newTab selectText printSubmitted copy programOpen 

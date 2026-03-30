@@ -1,1 +1,0 @@
-deactivateWindow slideshowBegin doubleClickWindow saveDocument deleteWorksheet 

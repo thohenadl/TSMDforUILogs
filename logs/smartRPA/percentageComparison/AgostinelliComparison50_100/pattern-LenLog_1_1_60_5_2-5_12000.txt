@@ -1,1 +1,0 @@
-selectText closeTab newWindow reload closedNotification 
