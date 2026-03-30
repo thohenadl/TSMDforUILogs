@@ -1,1 +1,0 @@
-programOpen Unmount programOpen printSubmitted paste printSubmitted detachTab printSubmitted Unmount openFile openFile programOpen Unmount Unmount cut selectFile paste selectFile printSubmitted selectFile installBrowserExtension contextMenu installBrowserExtension printSubmitted startDownload 

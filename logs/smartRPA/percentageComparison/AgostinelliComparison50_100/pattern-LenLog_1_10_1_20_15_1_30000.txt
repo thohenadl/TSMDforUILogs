@@ -1,1 +1,0 @@
-programClose programOpen insertUSB programClose Mount printSubmitted programOpen paste programClose copy created copy programClose paste Unmount 

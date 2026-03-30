@@ -1,1 +1,0 @@
-clickRadioButton uninstallBrowserExtension dragElement dragElement unmutedTab 

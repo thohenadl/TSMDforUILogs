@@ -1,1 +1,0 @@
-clickLink installBrowserExtension clickRadioButton installBrowserExtension clickRadioButton installBrowserExtension installBrowserExtension clickLink clickRadioButton clickRadioButton 

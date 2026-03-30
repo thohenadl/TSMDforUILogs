@@ -1,1 +1,0 @@
-disableBrowserExtension clickLink newTab newTab cancelDialog SlideSelectionChanged slideshowBegin sheetCalculate slideshowEnd slideshowEnd paste enableBrowserExtension created copy attachTab 

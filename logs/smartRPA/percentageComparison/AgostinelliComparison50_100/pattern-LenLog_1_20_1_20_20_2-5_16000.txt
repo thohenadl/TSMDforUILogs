@@ -1,1 +1,0 @@
-selectFolder moveTab newTab submit newWindow navigateTo cut newBookmark newBookmark reload Unmount newTab selectFile selectFile disableBrowserExtension moved submit unpinnedTab printSubmitted deleted 

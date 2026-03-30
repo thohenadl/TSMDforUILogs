@@ -1,1 +1,0 @@
-saveDocument saveDocument addWorksheet doubleClickEmptyCell saveWorkbook savePresentation rightClickPresentation deactivateWorkbook deactivateWindow doubleClickPresentation 

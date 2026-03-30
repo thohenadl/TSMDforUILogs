@@ -1,1 +1,0 @@
-uninstallBrowserExtension reload uninstallBrowserExtension changeField closeTab clickCheckboxButton disableBrowserExtension clickedNotification clickedNotification clickCheckboxButton 

@@ -1,1 +1,0 @@
-installBrowserExtension clickLink clickLink unmutedTab unmutedTab clickCheckboxButton dragElement installBrowserExtension clickRadioButton clickLink clickRadioButton installBrowserExtension clickLink uninstallBrowserExtension installBrowserExtension 

@@ -1,1 +1,0 @@
-insertUSB beforeSaveWorkbook doubleClickCellWithValue attachTab getCell hotkey slideshowBegin programOpen rightClickPresentation changeDocument 

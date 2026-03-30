@@ -1,1 +1,0 @@
-cut openFolder insertUSB moved moved openFile openFolder modified openFolder copy 

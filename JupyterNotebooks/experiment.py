@@ -14,8 +14,6 @@ from gensim.models import Word2Vec
 from sklearn.preprocessing import LabelEncoder
 
 import util.GrammarBasedUtil as grammar_util
-import util.ui_stump as ui_stump
-
 import util.valmod_uihe as valmod_util
 from util.util import encoding_UiLog, read_data_for_processing, print_progress_bar
 import matplotlib as plt

@@ -1,1 +1,0 @@
-submit erasedDownload doubleClick dragElement urlHashChange enableBrowserExtension urlHashChange Mount clickTextField pinnedTab fullscreen typed unmutedTab zoomTab startDownload deleted cut cut dragElement insertUSB 

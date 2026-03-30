@@ -1,1 +1,0 @@
-closedNotification changeHistory installBrowserExtension closedNotification closeTab uninstallBrowserExtension installBrowserExtension changeHistory newBookmark newBookmark 
