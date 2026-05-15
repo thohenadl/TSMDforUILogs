@@ -74,7 +74,7 @@ def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","a
       if coocurance_combined:
 
         # Create combined column in result_df
-        result_df['combined'] = result_df[orderedColumnsList].astype(str).agg('|'.join, axis=1)
+        result_df['combined'] = result_df[orderedColumnsList].fillna('').astype(str).apply(lambda r: '|'.join(r), axis=1)
         
         # Create temporary df with combined column for co-occurrence calculation
         temp_df = result_df.copy()
@@ -158,7 +158,7 @@ def encoding_UiLog(uiLog: pd.DataFrame, orderedColumnsList: list= ["category","a
     
     elif encoding == 3: # Continuous Hot Encoding
       # Create a single combined column to represent the unique combination
-      combined = uiLog[orderedColumnsList].astype(str).agg('|'.join, axis=1)
+      combined = uiLog[orderedColumnsList].fillna('').astype(str).apply(lambda r: '|'.join(r), axis=1)
       
       # Factorize the combined values to get unique IDs
       uiLog['tuple:id'] = pd.factorize(combined)[0]

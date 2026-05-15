@@ -71,13 +71,23 @@ TSMDforUILogs/
 
 ## Setup
 
-Requires **Python 3.12**. A Conda or `.venv` environment is recommended.
+Requires **Python >3.12**. A Conda or `.venv` environment is recommended.
 
 ```bash
 pip install -r requirements.txt
 ```
 
 All notebooks are in `JupyterNotebooks/`. They use relative paths (`../logs/`) so run them from that directory or open them with Jupyter/VS Code with the workspace root set correctly.
+
+All files are large Github files through git lfs
+
+Install git large file storage, e.g. for MacOs:
+
+```bash
+brew install git-lfs
+git lfs install
+git lfs pull
+```
 
 ---
 

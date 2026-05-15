@@ -27,8 +27,9 @@ def num_to_letters(n, lowercase=False):
         return s
 
 def symbolize_UILog(log: pd.DataFrame, hierarchy_cols: list) -> pd.DataFrame:
-    # Combine all hierarchy columns into a single string key (vectorized)
-    combo_series = log[hierarchy_cols].astype(str).agg('|'.join, axis=1)
+    # Combine all hierarchy columns into a single string key (vectorized).
+    # fillna before astype(str) so NaN floats don't leak into the join.
+    combo_series = log[hierarchy_cols].fillna('').astype(str).apply(lambda r: '|'.join(r), axis=1)
     # Compute categorical codes
     codes = pd.Categorical(combo_series).codes
     # Precompute all unique letter codes

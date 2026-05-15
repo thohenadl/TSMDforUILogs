@@ -912,16 +912,18 @@ def encode_word2vec(uiLog: pd.DataFrame,
     # Tokens for training
     train_tokens = (
         train_df[orderedColumnsList]
+        .fillna('')
         .astype(str)
-        .agg('|'.join, axis=1)
+        .apply(lambda r: '|'.join(r), axis=1)
         .tolist()
     )
 
     # Tokens for inference (same transformation, but only for uiLog)
     ui_tokens = (
         df[orderedColumnsList]
+        .fillna('')
         .astype(str)
-        .agg('|'.join, axis=1)
+        .apply(lambda r: '|'.join(r), axis=1)
     )
 
     # Train Word2Vec

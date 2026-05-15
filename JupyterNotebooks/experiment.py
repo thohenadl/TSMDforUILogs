@@ -10,7 +10,6 @@ import numpy as np
 import ast
 import math
 
-from gensim.models import Word2Vec
 from sklearn.preprocessing import LabelEncoder
 
 import util.GrammarBasedUtil as grammar_util
@@ -65,7 +64,7 @@ def run_experiment(log_name_smartRPA: str,
     log = data_for_processing["log"]
     ground_truth = data_for_processing["ground_truth"]
 
-   # Filter out hierarchy columns that have zero unique values
+    # Filter out hierarchy columns that have zero unique values
     hierarchy_columns = [
         col for col in hierarchy_columns
         if log[col].nunique() != 0
