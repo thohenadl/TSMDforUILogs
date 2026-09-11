@@ -358,6 +358,29 @@ def find_max_density_groups(
     return groups, None
 
 
+def compute_max_density_groups_df(log, rule_density_threshold=0.8, percentile_threshold=0.90):
+    """
+    Find rule-density groups (via find_max_density_groups) and return them as a
+    DataFrame with start_index, end_index, and length columns per group.
+    """
+    max_density_groups_from_rules, _ = find_max_density_groups(
+        log, relative_threshold=rule_density_threshold, method="percentile",
+        percentile_threshold=percentile_threshold,
+    )
+    maximum_density_groups_df = pd.DataFrame(columns=["group", "processed"])
+    maximum_density_groups_df["group"] = max_density_groups_from_rules
+
+    maximum_density_groups_df["start_index"] = -1
+    maximum_density_groups_df["end_index"] = -1
+    maximum_density_groups_df["length"] = 0
+    for i, grammer_motif in maximum_density_groups_df.iterrows():
+        maximum_density_groups_df.loc[i, "start_index"] = min(grammer_motif['group'])
+        maximum_density_groups_df.loc[i, "end_index"] = max(grammer_motif['group'])
+        maximum_density_groups_df.loc[i, "length"] = maximum_density_groups_df.loc[i, "end_index"] - maximum_density_groups_df.loc[i, "start_index"] + 1
+
+    return maximum_density_groups_df
+
+
 def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5, overlap_type="ratio"):
     """
     Unified, efficient motif evaluation function.
@@ -375,9 +398,11 @@ def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5, overlap_typ
         Minimum overlap ratio to consider a motif and ground truth as matching.
 
     overlap_type : str, optional
-        Type of overlap to use for matching ("ratio" or "absolute").
-        Ratio: overlap / motif_length
+        Type of overlap to use for matching ("ratio", "absolute", or "iou").
+        Ratio: overlap / motif_length (one-sided)
         Absolute: overlap event count
+        IoU: |motif ∩ gt| / |motif ∪ gt| (Jaccard). One-to-one matching by
+        descending IoU per Lemma 1 of the paper's Section 4.1.
 
     Returns
     -------
@@ -423,6 +448,7 @@ def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5, overlap_typ
             glen = gt_lengths[j]
             ov = overlap[i, j]
 
+            union = mlen + glen - ov
             rows.append({
                 "motif_id": i,
                 "gt_id": j,
@@ -435,6 +461,7 @@ def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5, overlap_typ
                 "overlap": ov,
                 "overlap_motif_ratio": ov / mlen if mlen > 0 else 0,
                 "overlap_gt_ratio": ov / glen if glen > 0 else 0,
+                "iou": ov / union if union > 0 else 0,
             })
 
     df = pd.DataFrame(rows)
@@ -450,8 +477,14 @@ def evaluate_motifs(max_groups, ground_truth, overlap_threshold=0.5, overlap_typ
         candidate_pairs = df[df["overlap_gt_ratio"] > overlap_threshold].sort_values(
             ["overlap", "motif_id", "gt_id"], ascending=[False, True, True], kind="mergesort"
         )
+    elif overlap_type == "iou":
+        # Jaccard / IoU matching per Lemma 1: TP iff |α∩β|/|α∪β| >= overlap_threshold
+        # Greedy descending-IoU assignment is equivalent to Hungarian under Lemma 1.
+        candidate_pairs = df[df["iou"] >= overlap_threshold].sort_values(
+            ["iou", "motif_id", "gt_id"], ascending=[False, True, True], kind="mergesort"
+        )
     else:
-        raise ValueError("Invalid overlap_type. Choose 'ratio' or 'absolute'.")
+        raise ValueError("Invalid overlap_type. Choose 'ratio', 'absolute', or 'iou'.")
 
     matched_motifs = set()
     matched_gts = set()
@@ -1359,3 +1392,155 @@ def plot_rule_density_with_highlights(log: pd.DataFrame,
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
+
+
+# ============================================================
+# EX4 — parameter-free ranked pipeline support
+# (see JupyterNotebooks/EX4_design_decisions.md)
+# ============================================================
+
+def compute_auprc(ranked_motif_ranges, ground_truth, overlap_threshold=0.8,
+                  overlap_type="ratio"):
+    """
+    Compute precision/recall at every prefix k of a ranked motif list,
+    then integrate to AUPRC.
+
+    Parameters
+    ----------
+    ranked_motif_ranges : list of (start, end) tuples or list of lists
+        Motifs in descending rank order. Each element must satisfy g[0]=start,
+        g[-1]=end (the convention evaluate_motifs already uses).
+    ground_truth : pd.DataFrame with columns ["start_index", "end_index"]
+    overlap_threshold : float, default 0.8
+        Passed through to evaluate_motifs.
+    overlap_type : str, default "ratio"
+        Passed through to evaluate_motifs.
+
+    Returns
+    -------
+    dict with:
+        - auprc : float (area under PR curve via step-function average precision)
+        - pr_curve : list of {k, precision, recall, tp, fp, fn}
+        - f1_at_k_gt : float (F1 when k = |ground_truth|; oracle ceiling)
+        - best_f1 : float (max F1 along the curve)
+        - best_f1_k : int (k at which best_f1 was achieved)
+    """
+    N = len(ranked_motif_ranges)
+    G = len(ground_truth)
+
+    if N == 0:
+        return {
+            "auprc": 0.0,
+            "pr_curve": [],
+            "f1_at_k_gt": 0.0,
+            "best_f1": 0.0,
+            "best_f1_k": 0,
+        }
+
+    pr_curve = []
+    for k in range(1, N + 1):
+        top_k = ranked_motif_ranges[:k]
+        stats = evaluate_motifs(top_k, ground_truth,
+                                overlap_threshold=overlap_threshold,
+                                overlap_type=overlap_type)
+        tp, fp, fn = stats["tp"], stats["fp"], stats["fn"]
+        precision = tp / (tp + fp) if (tp + fp) else 0.0
+        recall = tp / (tp + fn) if (tp + fn) else 0.0
+        pr_curve.append({
+            "k": k, "precision": precision, "recall": recall,
+            "tp": tp, "fp": fp, "fn": fn,
+        })
+
+    # Step-function average-precision (sklearn-compatible):
+    #   AP = sum_k (R_k - R_{k-1}) * P_k
+    auprc = 0.0
+    prev_recall = 0.0
+    for point in pr_curve:
+        auprc += (point["recall"] - prev_recall) * point["precision"]
+        prev_recall = point["recall"]
+
+    # F1 along the curve
+    f1_values = [
+        2 * p["precision"] * p["recall"] / (p["precision"] + p["recall"])
+        if (p["precision"] + p["recall"]) else 0.0
+        for p in pr_curve
+    ]
+    best_f1_idx = int(np.argmax(f1_values)) if f1_values else 0
+    best_f1 = float(f1_values[best_f1_idx]) if f1_values else 0.0
+    best_f1_k = pr_curve[best_f1_idx]["k"] if pr_curve else 0
+
+    # F1 @ k = |GT|  (oracle ceiling; only defined when N >= G)
+    if G > 0 and G <= N:
+        f1_at_k_gt = float(f1_values[G - 1])
+    else:
+        f1_at_k_gt = float(f1_values[-1]) if f1_values else 0.0
+
+    return {
+        "auprc": float(auprc),
+        "pr_curve": pr_curve,
+        "f1_at_k_gt": f1_at_k_gt,
+        "best_f1": best_f1,
+        "best_f1_k": best_f1_k,
+    }
+
+
+def attach_top_grammar_rule(motif_ranges, encoding_df, log,
+                             symbol_col="symbol"):
+    """
+    For each motif range, return the grammar rule symbol whose decoded terminal
+    expansion has the largest index-overlap with that range.
+
+    Used by run_experiment_ranked (EX4) to give each output motif an
+    interpretability anchor connecting it back to Stream 2 (the grammar).
+
+    Parameters
+    ----------
+    motif_ranges : iterable of (start, end) tuples (inclusive indices)
+    encoding_df : grammar encoding produced by re_pair(...)
+    log : pd.DataFrame with the symbol column used during re_pair
+    symbol_col : str, default "symbol"
+
+    Returns
+    -------
+    list[str] of length len(motif_ranges) — the rule symbol per motif.
+        Empty string if no rule overlaps the range.
+    """
+    decoded_rules = re_pair_decode_all(encoding_df)
+    symbols = log[symbol_col].astype(str).tolist()
+    T = len(symbols)
+
+    # Build per-rule covered-index sets. Cheap memory: each rule's coverage is
+    # a numpy boolean mask of length T.
+    rule_coverage = {}
+    for sym, decoding in decoded_rules.items():
+        if len(decoding) < 2:
+            # Skip terminal singletons — they cover every event of that symbol
+            # and would dominate the argmax trivially. Only non-terminal rules
+            # are interpretability-relevant.
+            continue
+        mask = np.zeros(T, dtype=bool)
+        seq_len = len(decoding)
+        for i in range(T - seq_len + 1):
+            if symbols[i:i + seq_len] == decoding:
+                mask[i:i + seq_len] = True
+        rule_coverage[sym] = mask
+
+    if not rule_coverage:
+        return ["" for _ in motif_ranges]
+
+    out = []
+    for rng in motif_ranges:
+        s, e = rng[0], rng[-1]
+        s_clip = max(0, int(s))
+        e_clip = min(T - 1, int(e))
+        if e_clip < s_clip:
+            out.append("")
+            continue
+        best_sym, best_overlap = "", 0
+        for sym, mask in rule_coverage.items():
+            ov = int(mask[s_clip:e_clip + 1].sum())
+            if ov > best_overlap:
+                best_overlap = ov
+                best_sym = sym
+        out.append(best_sym)
+    return out

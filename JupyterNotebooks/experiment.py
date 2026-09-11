@@ -33,12 +33,14 @@ warnings.filterwarnings('ignore', category=UserWarning)
 
 def run_experiment(log_name_smartRPA: str, 
                    encoding_method: int=1,
+                   pre_filtering: bool=True,
                    rule_density_threshold: float=0.8, 
                    app_switch_similarity_threshold: float=0.8,
                    safety_margin_factor: int=2,
                    percentile_threshold: float=0.90,
                    rho_LoCoMotif : float=0.7,
                    overlap_threshold: float=0.8,
+                   l_max_default: int=75,
                    printing: bool=False,
                    plotting: bool=False) -> pd.DataFrame:
     isSmartRPA2024 = False
@@ -91,136 +93,137 @@ def run_experiment(log_name_smartRPA: str,
     #### Experiment Step 2: Grammar Based Rule Discovery ######
     ###########################################################
 
-    # Find the maximum density groups based on the rule density count
-    max_density_groups_from_rules, _ = grammar_util.find_max_density_groups(log,relative_threshold=rule_density_threshold,method="percentile",percentile_threshold=percentile_threshold)
-    maximum_density_groups_df = pd.DataFrame(columns=["group","processed"])
-    maximum_density_groups_df["group"] = max_density_groups_from_rules
+    if pre_filtering:
+        # Find the maximum density groups based on the rule density count
+        maximum_density_groups_df = grammar_util.compute_max_density_groups_df(log, rule_density_threshold, percentile_threshold)
 
-    # Add start and end indices to the dataframe
-    maximum_density_groups_df["start_index"] = -1
-    maximum_density_groups_df["end_index"] = -1
-    maximum_density_groups_df["length"] = 0
-    for i, grammer_motif in maximum_density_groups_df.iterrows():
-        maximum_density_groups_df.loc[i, "start_index"] = min(grammer_motif['group'])
-        maximum_density_groups_df.loc[i, "end_index"] = max(grammer_motif['group'])
-        maximum_density_groups_df.loc[i, "length"] = maximum_density_groups_df.loc[i, "end_index"] - maximum_density_groups_df.loc[i, "start_index"] + 1
-        
-    start_indices = maximum_density_groups_df["start_index"].tolist()
-    end_indices = maximum_density_groups_df["end_index"].tolist()
-    max_density_groups_time = time.time()
+        start_indices = maximum_density_groups_df["start_index"].tolist()
+        end_indices = maximum_density_groups_df["end_index"].tolist()
+        max_density_groups_time = time.time()
 
-    # ---- Visualisation Only ---- No Logic for subsequent processing ----
-    ground_truth.sort_values(by=["start_index"], inplace=True)
-    motiv = int(ground_truth.iloc[0]["start_index"])
-    if printing:
-        print(f"Start Index of the first ground truth motif: {motiv}")
-    ground_truth = ground_truth.astype({'caseid': 'str', 'start_index': 'int', 'length': 'int', 'end_index': 'int'})
+        # ---- Visualisation Only ---- No Logic for subsequent processing ----
+        ground_truth.sort_values(by=["start_index"], inplace=True)
+        motiv = int(ground_truth.iloc[0]["start_index"])
+        if printing:
+            print(f"Start Index of the first ground truth motif: {motiv}")
+        ground_truth = ground_truth.astype({'caseid': 'str', 'start_index': 'int', 'length': 'int', 'end_index': 'int'})
 
-    if printing:
-        print(f"Maximum rule density count: {log['rule_density_count'].max()}")
-        max_length = -1
-        min_length = len(log)
-        for motif in maximum_density_groups_df["group"]:
-            if len(motif) > max_length:
-                max_length = len(motif)
-            if len(motif) > 0 and len(motif) < min_length:
-                min_length = len(motif)
-                print(f"Longest identified motif length: {max_length}")
+        if printing:
+            print(f"Maximum rule density count: {log['rule_density_count'].max()}")
+            max_length = -1
+            min_length = len(log)
+            for motif in maximum_density_groups_df["group"]:
+                if len(motif) > max_length:
+                    max_length = len(motif)
+                if len(motif) > 0 and len(motif) < min_length:
+                    min_length = len(motif)
+                    print(f"Longest identified motif length: {max_length}")
 
-    if plotting:
-        grammar_util.plot_density_curve(log, range_low=0, range_high=min(500, len(log)))
-        grammar_util.plot_rule_density_distribution(log, col_name="rule_density_count")
+        if plotting:
+            grammar_util.plot_density_curve(log, range_low=0, range_high=min(500, len(log)))
+            grammar_util.plot_rule_density_distribution(log, col_name="rule_density_count")
 
-    if plotting:
-        colors = plt.cm.tab10.colors
-        length = ground_truth["length"].max()
-        for i, start in enumerate(ground_truth["start_index"]):
-            end = start+length+10
-            y = log.iloc[int(start):int(end)]["rule_density_count"].to_numpy()
-            x = range(len(y))  # all start at 0
-            plt.plot(x, y, color=colors[i % len(colors)], linewidth=2, label=f"Range {start}-{end}")
-            
-        plt.title("Rule Density Across Ground Truth Motif Locations") 
-        plt.xlabel("Relative Index (starts at 0)")
-        plt.ylabel("rule_density_count")
-        plt.tight_layout()
-        plt.show()
+        if plotting:
+            colors = plt.cm.tab10.colors
+            length = ground_truth["length"].max()
+            for i, start in enumerate(ground_truth["start_index"]):
+                end = start+length+10
+                y = log.iloc[int(start):int(end)]["rule_density_count"].to_numpy()
+                x = range(len(y))  # all start at 0
+                plt.plot(x, y, color=colors[i % len(colors)], linewidth=2, label=f"Range {start}-{end}")
+                
+            plt.title("Rule Density Across Ground Truth Motif Locations") 
+            plt.xlabel("Relative Index (starts at 0)")
+            plt.ylabel("rule_density_count")
+            plt.tight_layout()
+            plt.show()
 
-        # ---- Evaluate the discovered motifs against the ground truth ----
-        stats_new = grammar_util.evaluate_motifs(maximum_density_groups_df["group"], ground_truth, overlap_threshold=3, overlap_type="absolute")
+            # ---- Evaluate the discovered motifs against the ground truth ----
+            stats_new = grammar_util.evaluate_motifs(maximum_density_groups_df["group"], ground_truth, overlap_threshold=3, overlap_type="absolute")
 
-        overlap_table = stats_new["overlap_table"]         # DataFrame for inspection
-        tp, fp, fn = stats_new["tp"], stats_new["fp"], stats_new["fn"]
-        for key, value in stats_new.items():
-            if key != "overlap_table" and key != "matched_pairs":
-                print(f"{key}: {value:.3f}")
+            overlap_table = stats_new["overlap_table"]         # DataFrame for inspection
+            tp, fp, fn = stats_new["tp"], stats_new["fp"], stats_new["fn"]
+            for key, value in stats_new.items():
+                if key != "overlap_table" and key != "matched_pairs":
+                    print(f"{key}: {value:.3f}")
 
-        precision = tp / (tp + fp) if (tp + fp) else 0
-        recall = tp / (tp + fn) if (tp + fn) else 0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+            precision = tp / (tp + fp) if (tp + fp) else 0
+            recall = tp / (tp + fn) if (tp + fn) else 0
+            f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
 
-        print(f"\nMetrics after Grammar >> Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}")
+            print(f"\nMetrics after Grammar >> Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}")
 
-        # ---- Plotting the results ----
-        plt.figure(figsize=(10, 4))
-        plt.plot(log.index, log["rule_density_count"], linewidth=2)
-        for g in max_density_groups_from_rules:
-            plt.axvspan(g[0], g[-1], color="red", alpha=0.3)
-        plt.title("Rule Density Curve — Highlighted Max Density Regions")
-        plt.xlabel("Index (Event position in log)")
-        plt.ylabel("Rule Density Count")
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        plt.show()
+            # ---- Plotting the results ----
+            plt.figure(figsize=(10, 4))
+            plt.plot(log.index, log["rule_density_count"], linewidth=2)
+            for g in maximum_density_groups_df["group"]:
+                plt.axvspan(g[0], g[-1], color="red", alpha=0.3)
+            plt.title("Rule Density Curve — Highlighted Max Density Regions")
+            plt.xlabel("Index (Event position in log)")
+            plt.ylabel("Rule Density Count")
+            plt.grid(True, alpha=0.3)
+            plt.tight_layout()
+            plt.show()
 
-    ########################################################
-    ##### App Switch, Pattern Mining and Safety Margin #####
-    ########################################################
+        ########################################################
+        ##### App Switch, Pattern Mining and Safety Margin #####
+        ########################################################
 
-    # Extend until the app changes for the specific pattern and add as "lower_app_switch" and "upper_app_switch"
-    max_groups_df = grammar_util.app_switch_miner(log, maximum_density_groups_df, hierarchy_columns_app_switch)
-    app_switch_mining_time = time.time()
+        # Extend until the app changes for the specific pattern and add as "lower_app_switch" and "upper_app_switch"
+        max_groups_df = grammar_util.app_switch_miner(log, maximum_density_groups_df, hierarchy_columns_app_switch)
+        app_switch_mining_time = time.time()
 
-    lower_app_switches = max_groups_df["lower_app_switch"].tolist()
-    upper_app_switches = max_groups_df["upper_app_switch"].tolist()
+        lower_app_switches = max_groups_df["lower_app_switch"].tolist()
+        upper_app_switches = max_groups_df["upper_app_switch"].tolist()
 
-    # Mine the similar paths up and down until an app switch across discovered patterns is found
-    result_df = grammar_util.similar_path_up_down(
-        df=log,
-        max_groups_df=max_groups_df,
-        start_indices=lower_app_switches,
-        end_indices=upper_app_switches,
-        cols=hierarchy_columns_app_switch,
-        min_pairs=len(lower_app_switches)*app_switch_similarity_threshold, # At least 75% of the patterns should be similar in path
-    )
+        # Mine the similar paths up and down until an app switch across discovered patterns is found
+        result_df = grammar_util.similar_path_up_down(
+            df=log,
+            max_groups_df=max_groups_df,
+            start_indices=lower_app_switches,
+            end_indices=upper_app_switches,
+            cols=hierarchy_columns_app_switch,
+            min_pairs=len(lower_app_switches)*app_switch_similarity_threshold, # At least 75% of the patterns should be similar in path
+        )
 
 
-    # build list of all valid index ranges
-    valid_indices = []
+        # build list of all valid index ranges
+        valid_indices = []
 
-    # Include additional safety margin from pattern switch
-    range_sum = 0
-    max_safety_margin = 0
-    for _, row in result_df.iterrows():
-        # Set the safety margin as the distance between the pattern switches & apply factor to extend based on safety concern
-        safety_margin = (int(row['upper_pattern_switch']) - int(row['lower_pattern_switch']))*safety_margin_factor
-        if safety_margin > max_safety_margin:
-            max_safety_margin = safety_margin
-        valid_indices.extend(range(max(0, int(row['lower_pattern_switch'])-safety_margin),
-                                min(int(row['upper_pattern_switch'])+safety_margin, len(log)-1)))
-        range_distance =  min(int(row['upper_pattern_switch'])+safety_margin, len(log)-1) - max(0, int(row['lower_pattern_switch'])-safety_margin)
-        range_sum += range_distance
-    if printing:
-        print(f"Total Included Range Length: {range_sum} of {len(log)}")
-        print(f"Percentage of Log Included: {range_sum/len(log)*100:.2f}%")
+        # Include additional safety margin from pattern switch
+        range_sum = 0
+        max_safety_margin = 0
+        for _, row in result_df.iterrows():
+            # Set the safety margin as the distance between the pattern switches & apply factor to extend based on safety concern
+            safety_margin = (int(row['upper_pattern_switch']) - int(row['lower_pattern_switch']))*safety_margin_factor
+            if safety_margin > max_safety_margin:
+                max_safety_margin = safety_margin
+            valid_indices.extend(range(max(0, int(row['lower_pattern_switch'])-safety_margin),
+                                    min(int(row['upper_pattern_switch'])+safety_margin, len(log)-1)))
+            range_distance =  min(int(row['upper_pattern_switch'])+safety_margin, len(log)-1) - max(0, int(row['lower_pattern_switch'])-safety_margin)
+            range_sum += range_distance
+        if printing:
+            print(f"Total Included Range Length: {range_sum} of {len(log)}")
+            print(f"Percentage of Log Included: {range_sum/len(log)*100:.2f}%")
 
-    # Generate Extended with all margins as list as well
-    max_groups_df['ext_group_list'] = max_groups_df.apply(lambda row: list(range(row['lower_pattern_switch'], row['upper_pattern_switch'] + 1)), axis=1)
+        # Generate Extended with all margins as list as well
+        max_groups_df['ext_group_list'] = max_groups_df.apply(lambda row: list(range(row['lower_pattern_switch'], row['upper_pattern_switch'] + 1)), axis=1)
 
-    log_path_extension_time = time.time()
+        log_path_extension_time = time.time()
 
-    # filter log to include only those indices
-    filtered_log = log.loc[log.index.intersection(valid_indices)].copy()
+        # filter log to include only those indices
+        filtered_log = log.loc[log.index.intersection(valid_indices)].copy()
+    else:
+        filtered_log = log.copy()
+
+        # Still compute rule-density groups (without the app-switch/safety-margin pipeline)
+        # so l_min and the grammar-core anchoring below have something to work with.
+        maximum_density_groups_df = grammar_util.compute_max_density_groups_df(log, rule_density_threshold, percentile_threshold)
+        max_groups_df = maximum_density_groups_df.copy()
+        max_groups_df['ext_group_list'] = max_groups_df['group']
+        max_density_groups_time = time.time()
+        app_switch_mining_time = max_density_groups_time
+        log_path_extension_time = max_density_groups_time
 
     # optionally, keep the original index as a column for traceability
     filtered_log['original_index'] = filtered_log.index
@@ -279,7 +282,10 @@ def run_experiment(log_name_smartRPA: str,
     # l_min = Grammer Rule Density Length Mean - Std Dev
     # l_max = Safety Margin from App switch analysis
     l_min = max(5,maximum_density_groups_df["length"].mean() - maximum_density_groups_df["length"].std())
-    l_max = max_safety_margin
+    if pre_filtering:
+        l_max = max_safety_margin
+    else:
+        l_max = l_max_default # If no pre-filtering, set l_max to the default value provided
 
     # Variable Length Motif Discovery >> Using the low from the GRAMMAR as l_min, Using the security margin from app switch as l_max
     motif_sets = locomotif.apply_locomotif(filtered_columns_reduced_log, l_min=l_min, l_max=l_max, rho=rho_LoCoMotif)
@@ -385,6 +391,7 @@ def run_experiment(log_name_smartRPA: str,
 
 
     base_result = {
+        "pre_filtering": pre_filtering,
         "rule_density_threshold": rule_density_threshold,
         "app_switch_similarity_threshold": app_switch_similarity_threshold,
         "encoding_method": encoding_method,
@@ -456,8 +463,10 @@ def run_experiment(log_name_smartRPA: str,
 
 def experiment(target_filename, rho: float=0.8, 
                log_limit: int=250001, 
+               pre_filtering: bool=True,
                safety_margin_factor: int=2, 
                encoding_method: int=1,
+               l_max_default: int=75,
                core_threshold: float=0.9):
     print("Importing necessary Libraries finished. Start execution.")
     validation_data_path = "../logs/smartRPA/202511-update/validationLogInformation.csv"
@@ -489,10 +498,12 @@ def experiment(target_filename, rho: float=0.8,
                 df_experiment_result = run_experiment( # Ensure run_experiment returns a single-row DataFrame with uiLogName
                     log_name_smartRPA=log_name_smartRPA,
                     encoding_method=encoding_method,
+                    pre_filtering=pre_filtering,
                     printing=False,
                     plotting=False,
                     safety_margin_factor=safety_margin_factor,
                     rho_LoCoMotif=rho,
+                    l_max_default=l_max_default,
                     overlap_threshold=0.8,
                     percentile_threshold=core_threshold
                 )
@@ -809,3 +820,252 @@ def variance_experiment(target_filename, rho: float=0.8,
 
     print("\nFinal DataFrame collected (last state before loop finished):")
     print(results_df_collector)
+
+# ============================================================
+# EX4 — parameter-free ranked pipeline
+# See JupyterNotebooks/EX4_design_decisions.md for rationale.
+# Coexists with run_experiment / experiment above; nothing in the
+# baseline pipeline is modified.
+# ============================================================
+
+T_MAX_SKIP_DEFAULT = 50_000
+
+
+def run_experiment_ranked(log_name_smartRPA: str,
+                          t_max_skip: int = T_MAX_SKIP_DEFAULT,
+                          printing: bool = False) -> tuple:
+    """
+    Parameter-free ranked discovery pipeline for a single SmartRPA 2025 log.
+
+    Returns
+    -------
+    (summary_df, motifs_df)
+        summary_df : one row with columns
+            uiLogName, log_length, n_motifs_discovered, auprc, f1_at_k_gt,
+            best_f1, best_f1_k, runtime_total_s, runtime_discovery_s,
+            l_min, l_max, vector_size, skipped, skip_reason
+        motifs_df  : one row per discovered motif with columns
+            uiLogName, motif_rank, range_start, range_end, length,
+            cluster_id, locomotif_rank, grammar_score, top_grammar_rule
+    """
+    isSmartRPA2024 = False
+    isSmartRPA2025 = True
+
+    total_start = time.time()
+
+    data_for_processing = read_data_for_processing(
+        isSmartRPA2024=isSmartRPA2024,
+        isSmartRPA2025=isSmartRPA2025,
+        log_name_smartRPA=log_name_smartRPA,
+    )
+    hierarchy_columns = data_for_processing["hierarchy_columns"]
+    log = data_for_processing["log"]
+    ground_truth = data_for_processing["ground_truth"]
+
+    log_length = len(log)
+
+    hierarchy_columns = [c for c in hierarchy_columns if log[c].nunique() != 0]
+    tokens = sum(log[c].nunique() for c in hierarchy_columns)
+    vector_size = round(math.sqrt(tokens)) if tokens > 0 else 1
+
+    ground_truth = ground_truth.astype({
+        'caseid': 'str', 'start_index': 'int',
+        'length': 'int', 'end_index': 'int',
+    })
+
+    base_summary = {
+        "uiLogName": log_name_smartRPA,
+        "log_length": log_length,
+        "n_motifs_discovered": 0,
+        "auprc": float("nan"),
+        "f1_at_k_gt": float("nan"),
+        "best_f1": float("nan"),
+        "best_f1_k": 0,
+        "runtime_total_s": float("nan"),
+        "runtime_discovery_s": float("nan"),
+        "l_min": 5,
+        "l_max": log_length // 2,
+        "vector_size": vector_size,
+        "skipped": False,
+        "skip_reason": "",
+    }
+
+    if log_length > t_max_skip:
+        base_summary["skipped"] = True
+        base_summary["skip_reason"] = "log_length_exceeds_t_max_skip"
+        base_summary["runtime_total_s"] = time.time() - total_start
+        empty_motifs = pd.DataFrame(columns=[
+            "uiLogName", "motif_rank", "range_start", "range_end", "length",
+            "cluster_id", "locomotif_rank", "grammar_score", "top_grammar_rule",
+        ])
+        return pd.DataFrame([base_summary]), empty_motifs
+
+    encoding_df, _symbols, _two_gram_df = grammar_util.re_pair(log)
+    log = grammar_util.generate_density_count(encoding_df, log)
+    density = log["rule_density_count"].to_numpy()
+
+    log_encoded = valmod_util.encode_word2vec(
+        log,
+        orderedColumnsList=hierarchy_columns,
+        vector_size=vector_size,
+        completeCorpusLog=log,
+    )
+    column_identifier = "w2v_"
+    ts_df = log_encoded.filter(like=column_identifier)
+    ts = ts_df.to_numpy().astype(np.float32)
+
+    col_mean = ts.mean(axis=0)
+    col_std = ts.std(axis=0, ddof=0)
+    col_std[col_std == 0] = 1.0
+    ts = (ts - col_mean) / col_std
+
+    l_min = 5
+    l_max = max(l_min + 1, log_length // 2)
+    base_summary["l_max"] = l_max
+
+    discovery_start = time.time()
+    motif_sets = locomotif.apply_locomotif(
+        ts, l_min=l_min, l_max=l_max, rho=0.8,
+    )
+    discovery_time = time.time() - discovery_start
+
+    flat_records = []
+    for cluster_id, cluster_set in enumerate(motif_sets):
+        motif_set_list = cluster_set[1] if len(cluster_set) > 1 else []
+        for motif in motif_set_list:
+            s = int(motif[0])
+            e = int(motif[1])
+            if e <= s:
+                continue
+            s_clip = max(0, s)
+            e_clip = min(log_length - 1, e - 1)
+            if e_clip < s_clip:
+                continue
+            grammar_score = float(density[s_clip:e_clip + 1].mean())
+            flat_records.append({
+                "uiLogName": log_name_smartRPA,
+                "range_start": s_clip,
+                "range_end": e_clip,
+                "length": e_clip - s_clip + 1,
+                "cluster_id": cluster_id,
+                "locomotif_rank": cluster_id,
+                "grammar_score": grammar_score,
+            })
+
+    motifs_df = pd.DataFrame(flat_records)
+    base_summary["n_motifs_discovered"] = len(motifs_df)
+
+    if len(motifs_df) == 0:
+        base_summary["auprc"] = 0.0
+        base_summary["f1_at_k_gt"] = 0.0
+        base_summary["best_f1"] = 0.0
+        base_summary["runtime_discovery_s"] = discovery_time
+        base_summary["runtime_total_s"] = time.time() - total_start
+        empty_motifs = pd.DataFrame(columns=[
+            "uiLogName", "motif_rank", "range_start", "range_end", "length",
+            "cluster_id", "locomotif_rank", "grammar_score", "top_grammar_rule",
+        ])
+        return pd.DataFrame([base_summary]), empty_motifs
+
+    motifs_df = motifs_df.sort_values(
+        by=["grammar_score", "locomotif_rank"],
+        ascending=[False, True],
+        kind="mergesort",
+    ).reset_index(drop=True)
+    motifs_df.insert(1, "motif_rank", range(1, len(motifs_df) + 1))
+
+    ranked_ranges = list(zip(motifs_df["range_start"], motifs_df["range_end"]))
+    motifs_df["top_grammar_rule"] = grammar_util.attach_top_grammar_rule(
+        ranked_ranges, encoding_df, log,
+    )
+
+    auprc_result = grammar_util.compute_auprc(
+        ranked_ranges, ground_truth,
+        overlap_threshold=0.8, overlap_type="ratio",
+    )
+    base_summary["auprc"] = auprc_result["auprc"]
+    base_summary["f1_at_k_gt"] = auprc_result["f1_at_k_gt"]
+    base_summary["best_f1"] = auprc_result["best_f1"]
+    base_summary["best_f1_k"] = auprc_result["best_f1_k"]
+    base_summary["runtime_discovery_s"] = discovery_time
+    base_summary["runtime_total_s"] = time.time() - total_start
+
+    if printing:
+        print(f"[{log_name_smartRPA}] T={log_length}  l_max={l_max}  "
+              f"motifs={len(motifs_df)}  AUPRC={auprc_result['auprc']:.3f}  "
+              f"F1@|GT|={auprc_result['f1_at_k_gt']:.3f}  "
+              f"discovery={discovery_time:.1f}s")
+
+    return pd.DataFrame([base_summary]), motifs_df
+
+
+def experiment_ranked(target_filename: str,
+                      t_max_skip: int = T_MAX_SKIP_DEFAULT,
+                      printing: bool = False):
+    """
+    Driver for the EX4 ranked pipeline across the SmartRPA 2025 validation set.
+    Writes two CSVs:
+        <target_filename>            — one row per log (summary)
+        <target_filename>_motifs.csv — one row per discovered motif
+    """
+    print("Importing necessary Libraries finished. Start execution.")
+    validation_data_path = "../logs/smartRPA/202511-update/validationLogInformation.csv"
+    validation_data = pd.read_csv(validation_data_path)
+    validation_data.sort_values(by="logLength", inplace=True)
+
+    results_dir = "../logs/smartRPA/202511-results/"
+    summary_csv_path = results_dir + target_filename
+    motifs_csv_path = results_dir + target_filename.replace(".csv", "_motifs.csv")
+
+    if os.path.exists(summary_csv_path):
+        summary_collector = pd.read_csv(summary_csv_path, sep=',')
+    else:
+        summary_collector = pd.DataFrame({"uiLogName": []})
+
+    if os.path.exists(motifs_csv_path):
+        motifs_collector = pd.read_csv(motifs_csv_path, sep=',')
+    else:
+        motifs_collector = pd.DataFrame({"uiLogName": []})
+
+    i = 0
+    for _index, row in validation_data.iterrows():
+        log_name_smartRPA = row['uiLogName']
+        if log_name_smartRPA in summary_collector['uiLogName'].values:
+            i += 1
+            print(f"Skipping already processed log: {log_name_smartRPA}")
+            continue
+
+        try:
+            summary_df, motifs_df = run_experiment_ranked(
+                log_name_smartRPA=log_name_smartRPA,
+                t_max_skip=t_max_skip,
+                printing=printing,
+            )
+        except Exception as e:
+            print(f"Error processing {log_name_smartRPA}: {e}")
+            summary_df = pd.DataFrame([{
+                "uiLogName": log_name_smartRPA,
+                "log_length": int(row['logLength']),
+                "skipped": True,
+                "skip_reason": f"error: {e}",
+            }])
+            motifs_df = pd.DataFrame(columns=["uiLogName"])
+
+        current_row_df = pd.DataFrame([row.to_dict()])
+        merged_summary = pd.merge(
+            current_row_df, summary_df, on='uiLogName', how='left'
+        )
+
+        summary_collector = pd.concat([summary_collector, merged_summary], ignore_index=True)
+        if len(motifs_df) > 0:
+            motifs_collector = pd.concat([motifs_collector, motifs_df], ignore_index=True)
+
+        summary_collector.to_csv(summary_csv_path, mode='w', header=True, index=False)
+        motifs_collector.to_csv(motifs_csv_path, mode='w', header=True, index=False)
+
+        print(f"Saved results for {log_name_smartRPA} to {summary_csv_path}")
+        print_progress_bar(i + 1, len(validation_data))
+        i += 1
+
+    print("\nFinal summary DataFrame (last state):")
+    print(summary_collector)
